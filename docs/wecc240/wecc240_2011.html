@@ -117,7 +117,7 @@ Meeting, pp. 1-6. IEEE, 2011.</li>
 </span><span id="L-6"><a href="#L-6"><span class="linenos">   6</span></a>
 </span><span id="L-7"><a href="#L-7"><span class="linenos">   7</span></a><span class="sd">    from wecc240_2011 import WECC240_2011</span>
 </span><span id="L-8"><a href="#L-8"><span class="linenos">   8</span></a><span class="sd">    from pypower_sim import PPModel, PPSolver</span>
-</span><span id="L-9"><a href="#L-9"><span class="linenos">   9</span></a><span class="sd">    </span>
+</span><span id="L-9"><a href="#L-9"><span class="linenos">   9</span></a>
 </span><span id="L-10"><a href="#L-10"><span class="linenos">  10</span></a><span class="sd">    model = WECC240_2011()</span>
 </span><span id="L-11"><a href="#L-11"><span class="linenos">  11</span></a><span class="sd">    solver = PPSolver(model)</span>
 </span><span id="L-12"><a href="#L-12"><span class="linenos">  12</span></a><span class="sd">    assert solver.solve_opf(), &quot;OPF failed&quot;</span>
@@ -1265,9 +1265,17 @@ Meeting, pp. 1-6. IEEE, 2011.</li>
 </span><span id="L-1154"><a href="#L-1154"><span class="linenos">1154</span></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
 </span><span id="L-1155"><a href="#L-1155"><span class="linenos">1155</span></a>
 </span><span id="L-1156"><a href="#L-1156"><span class="linenos">1156</span></a>    <span class="n">model</span> <span class="o">=</span> <span class="n">WECC240_2011</span><span class="p">()</span>
-</span><span id="L-1157"><a href="#L-1157"><span class="linenos">1157</span></a>    <span class="n">solver</span> <span class="o">=</span> <span class="n">PPSolver</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
-</span><span id="L-1158"><a href="#L-1158"><span class="linenos">1158</span></a>    <span class="n">solver</span><span class="o">.</span><span class="n">solve_opf</span><span class="p">()</span>
-</span><span id="L-1159"><a href="#L-1159"><span class="linenos">1159</span></a>    <span class="n">solver</span><span class="o">.</span><span class="n">solve_pf</span><span class="p">()</span>
+</span><span id="L-1157"><a href="#L-1157"><span class="linenos">1157</span></a>    
+</span><span id="L-1158"><a href="#L-1158"><span class="linenos">1158</span></a>    <span class="n">solver</span> <span class="o">=</span> <span class="n">PPSolver</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+</span><span id="L-1159"><a href="#L-1159"><span class="linenos">1159</span></a>    <span class="n">solver</span><span class="o">.</span><span class="n">solve_opf</span><span class="p">()</span>
+</span><span id="L-1160"><a href="#L-1160"><span class="linenos">1160</span></a>    <span class="n">solver</span><span class="o">.</span><span class="n">solve_pf</span><span class="p">()</span>
+</span><span id="L-1161"><a href="#L-1161"><span class="linenos">1161</span></a>
+</span><span id="L-1162"><a href="#L-1162"><span class="linenos">1162</span></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+</span><span id="L-1163"><a href="#L-1163"><span class="linenos">1163</span></a>    <span class="n">pd</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">display</span><span class="o">.</span><span class="n">max_columns</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="L-1164"><a href="#L-1164"><span class="linenos">1164</span></a>    <span class="n">pd</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">display</span><span class="o">.</span><span class="n">width</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="L-1165"><a href="#L-1165"><span class="linenos">1165</span></a>    <span class="n">pd</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">display</span><span class="o">.</span><span class="n">max_rows</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="L-1166"><a href="#L-1166"><span class="linenos">1166</span></a>    
+</span><span id="L-1167"><a href="#L-1167"><span class="linenos">1167</span></a>    <span class="n">model</span><span class="o">.</span><span class="n">print</span><span class="p">()</span>
 </span></pre></div>
 
 
