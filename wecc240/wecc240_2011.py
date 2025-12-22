@@ -6,6 +6,7 @@ The WECC 240 Model Version 1 is based on the model from the 2011 paper by Price 
 
     from wecc240_2011 import WECC240_2011
     from pypower_sim import PPModel, PPSolver
+    
     model = WECC240_2011()
     solver = PPSolver(model)
     assert solver.solve_opf(), "OPF failed"
