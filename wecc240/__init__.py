@@ -43,8 +43,6 @@ https://ieeexplore.ieee.org/abstract/document/9299666.
 
 # Package information
 
-# Package information
-
 - Source code: https://github.com/eudoxys/wecc240
 
 - Documentation: https://www.eudoxys.com/wecc240
