@@ -1,0 +1,2 @@
+numpy
+pypower_sim @ git+https://github.com/eudoxys/pypower_sim

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wecc240"
+version = "0.0.0"
+authors = [
+    { name = "David P. Chassin", email = "dchassin@eudoxys.com" }
+]
+maintainers = [
+    {name = "David P. Chassin <dpchassin@gmail.com>"},
+    ]
+description = "WECC 240 bus models"
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["eudoxys","wecc","model","wecc240"]
+license = {text="MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dynamic = ["dependencies"]
+
+[tool.setuptools]
+packages = [
+    "wecc240"
+]
+
+[tool.setuptools.dynamic]
+dependencies = {file = "requirements.txt"}
+
+[project.scripts]
+ppsim = "wecc240:main"
+
+[project.urls]
+Homepage = "https://github.com/eudoxys/wecc240"
+Documentation = "https://www.eudoxys.com/wecc240"
+Repository = "https://github.com/eudoxys/wecc240.git"
+Issues = "https://github.com/eudoxys/wecc240/issues"
