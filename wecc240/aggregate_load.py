@@ -66,9 +66,12 @@ if __name__ == "__main__":
 
     for country,node in [("Canada",x) for x in canada] + [("Mexico",x) for x in mexico]:
         file = f"{country}/{node}.csv"
+        print("Reading",file,end="...",flush=True)
         if os.path.exists(file):
             data = pd.read_csv(file,index_col=["timestamp"],parse_dates=["timestamp"])
             result[node] = data.loc[result.index,"load_MW"]
+            print(data)
+            print(f"ok ({data.load_MW.sum()/1e3:.1f} GWh)")
         else:
             _logger.warning(f"{file} does not exist")
 
