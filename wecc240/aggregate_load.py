@@ -5,25 +5,29 @@ Usage
     
     python3 aggregate_load.py [--debug] [--refresh] YEAR ...
 
+Notes
+-----
+
+- The nodes in Canada (`c2c10y` and `c2u6xt`) are provisioned with data from
+  BC Hydro and AESO, respectively. See `wecc240/Canada` for details. 
+
+- The node in Mexica (`9mtzm4`) is provisioned with static data from the 2011
+  model. See `wecc240/Mexico` for details.
+
 Example
 -------
 
 To get the aggregate load data for 2020 run the command
 
-    python2 aggregate_load.py 2020
+    python3 aggregate_load.py 2020
 
 which outputs the following
 
-    /Users/david/GitHub/eudoxys/wecc240/wecc240/aggregate_load.py:62: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
-      result[node] = data.loc[result.index,"load_MW"]
-    /Users/david/GitHub/eudoxys/wecc240/wecc240/aggregate_load.py:62: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
-      result[node] = data.loc[result.index,"load_MW"]
-    WARNING:/Users/david/GitHub/eudoxys/wecc240/wecc240/aggregate_load.py:Mexico/9mtzm4.csv does not exist
     WECC load for 2020
     ------------------
-    Peak demand......... 164.4 GW
+    Peak demand......... 159.8 GW
     Peak day............ 2020-08-18 21:00:00 UTC
-    Total consumption... 928.7 TWh
+    Total consumption... 882.3 TWh
 """
 
 if __name__ == "__main__":
@@ -55,7 +59,7 @@ if __name__ == "__main__":
     try:
         year = int([x for x in sys.argv[1:] if not x.startswith("-")][1])
     except:
-        print("Syntax: python3 aggregate.py [--debug] [--refresh] YEAR",file=sys.stderr)
+        print("Syntax: python3 aggregate_load.py [--debug] [--refresh] YEAR",file=sys.stderr)
         year = 2020
         print(f"Using default aggregates for {year=} with {debug=}",flush=True)
 
@@ -70,7 +74,7 @@ if __name__ == "__main__":
         if os.path.exists(file):
             data = pd.read_csv(file,index_col=["timestamp"],parse_dates=["timestamp"])
             result[node] = data.loc[result.index,"load_MW"]
-            print(data)
+            # print(data)
             print(f"ok ({data.load_MW.sum()/1e3:.1f} GWh)")
         else:
             _logger.warning(f"{file} does not exist")

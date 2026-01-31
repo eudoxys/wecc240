@@ -44,23 +44,45 @@ def _(loads_GW):
 
 @app.cell
 def _(load_ui, loads_GW, mo, plt, total_load_GW):
-    _figsize=(10,7)
+    figsize=(10,7)
     if load_ui.value is None:
-        total_load_GW.iloc[12:].plot(figsize=_figsize)
+        total_load_GW.iloc[12:].plot(figsize=figsize)
 
         # see https://wecc-spdp-weccgeo.hub.arcgis.com/datasets/404f2439b7ff41b382e3792ac011003d/explore
         plt.axhline(163.456,label="WECC Reported Peak",color="k",linestyle=":")
-    
-    else:
-        loads_GW[load_ui.value].iloc[12:].plot(figsize=_figsize)
 
-    plt.title("WECC 240 2020")
+    else:
+        loads_GW[load_ui.value].iloc[12:].plot(figsize=figsize)
+
+    plt.title(load_ui.selected_key)
     plt.xlabel("Date/Time")
     plt.ylabel("Power (GW)")
     plt.grid()
     plt.legend()
+    hourly = mo.mpl.interactive(plt.gcf())
+    return figsize, hourly
 
-    mo.mpl.interactive(plt.gcf())
+
+@app.cell
+def _(figsize, load_ui, loads_GW, total_load_GW):
+    if load_ui.value is None:
+        _data = total_load_GW.iloc[12:]
+    else:
+        _data = loads_GW["c2u6xt"].iloc[12:]
+    monthly = _data.groupby(_data.index.month).mean().plot(
+        figsize=figsize,
+        grid=True,
+        kind="bar",
+        title=load_ui.selected_key,
+        xlabel="Month of 2020",
+        ylabel="Monthly average load (GW)",
+    )
+    return (monthly,)
+
+
+@app.cell
+def _(hourly, mo, monthly):
+    mo.ui.tabs({"Hourly":hourly,"Monthly":monthly})
     return
 
 
