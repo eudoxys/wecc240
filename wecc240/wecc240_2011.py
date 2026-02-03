@@ -1156,8 +1156,8 @@ if __name__ == "__main__":
     model = WECC240_2011()
     
     solver = PPSolver(model)
-    solver.solve_opf()
-    solver.solve_pf()
+    assert solver.solve_opf(), "OPF failed"
+    assert solver.solve_pf(), "PF failed"
 
     import pandas as pd
     pd.options.display.max_columns = None
