@@ -26,12 +26,12 @@ if __name__ == "__main__":
         ).tz_convert("UTC")
 
     # read tieline exports (energy from BC is positive)
-    exports = -pd.read_csv("imports.csv",usecols=["US","AB"])
+    exports = -pd.read_csv("BCHydro/imports.csv",usecols=["US","AB"])
     exports.index = dt_index
 
 
     # read net loads
-    loads = pd.read_csv("loads.csv",usecols=["elec_net_MW"])
+    loads = pd.read_csv("BCHydro/loads.csv",usecols=["elec_net_MW"])
     loads.index = dt_index
 
     # losses (only exports have losses that local generation supports)
