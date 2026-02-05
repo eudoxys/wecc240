@@ -51,7 +51,7 @@ if __name__ == "__main__":
     model = WECC240_2018()
     
     solver = PPSolver(model)
-    # assert solver.solve_opf(), "OPF failed"
+    assert solver.solve_opf(), "OPF failed"
     assert solver.solve_pf(), "PF failed"
 
     import pandas as pd

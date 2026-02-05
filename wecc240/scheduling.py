@@ -1,4 +1,14 @@
 """Read the scheduling data and generate the 2018 model
+
+Usage
+-----
+
+    python3 scheduling.py
+
+Description
+-----------
+
+Running this script tests the 
 """
 
 import pandas as pd
@@ -44,27 +54,31 @@ class Generator(pd.DataFrame):
           - `np.array`: gen data array for PyPower
         """
         return np.array([
-            self.busname.astype(int),
-            np.zeros(len(self)),
-            np.zeros(len(self)),
-            self.Pmax*q_factor,
-            -self.Pmax*q_factor,
-            np.ones(len(self)),
-            np.full(len(self),basemva),
-            self.InitStatus,
-            self.Pmax,
-            self.Pmin,
-            np.zeros(len(self)),
-            np.zeros(len(self)),
-            np.zeros(len(self)),
-            np.zeros(len(self)),
-            np.zeros(len(self)),
-            np.zeros(len(self)),
-            np.zeros(len(self)),
-            np.zeros(len(self)),
-            np.zeros(len(self)),
-            np.zeros(len(self)),
-            np.zeros(len(self)),
+            self.busname, # GEN_BUS
+            np.zeros(len(self)), # PG
+            np.zeros(len(self)), # QG
+            self.Pmax*q_factor, # QMAX
+            -self.Pmax*q_factor, # QMIN
+            np.ones(len(self)), # VG
+            np.full(len(self),basemva), # MBASE
+            self.InitStatus, # GEN_STATUS
+            self.Pmax, # PMAX
+            self.Pmin, # PMIN
+            np.zeros(len(self)), # PC1
+            np.zeros(len(self)), # PC2
+            np.zeros(len(self)), # QC1MIN
+            np.zeros(len(self)), # QC1MAX
+            np.zeros(len(self)), # QC2MIN
+            np.zeros(len(self)), # QC2MAX
+            np.zeros(len(self)), # RAMP_AGC
+            np.zeros(len(self)), # RAMP_10
+            np.zeros(len(self)), # RAMP_30
+            np.zeros(len(self)), # RAMP_Q
+            np.zeros(len(self)), # APG
+            np.zeros(len(self)), # MU_PMAX
+            np.zeros(len(self)), # MU_PMIN
+            np.zeros(len(self)), # MU_QMAX
+            np.zeros(len(self)), # MU_QMIN
             ]).T
 
     def to_ppgencost(self):
@@ -131,9 +145,18 @@ if __name__ == "__main__":
 
     pd.options.display.width = None
     pd.options.display.max_columns = None
+    pd.options.display.max_rows = None
     
-    gen = Generator()
-    print(gen.to_ppgen())
-    print(gen.to_ppgencost())
+    gen = pd.DataFrame(Generator().to_ppgen().round(3),columns=[
+        "GEN_BUS","PG","QG","QMAX","QMIN","VG","MBASE","GEN_STATUS",
+        "PMAX","PMIN","PC1","PC2","QC1MIN","QC1MAX","QC2MIN","QC2MAX",
+        "RAMP_AGC","RAMP_10","RAMP_30","RAMP_Q","APF",
+        "MU_PMAX","MU_PMIN","MU_QMAX","MU_QMIN",
+        ])
+    gen.GEN_BUS = gen.GEN_BUS.astype(int)
+    gen.GEN_STATUS = gen.GEN_STATUS.astype(int)
+    print(gen.set_index("GEN_BUS"))
+
+    # print(gen.to_ppgencost())
     # print(ESS())
     # print(Line())
