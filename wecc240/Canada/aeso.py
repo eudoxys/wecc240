@@ -76,6 +76,6 @@ if __name__ == "__main__":
     loads.index.name="timestamp"
 
     print("Saving results",end="...",flush=True)
-    result = pd.merge(gens,loads,left_index=True,right_index=True).sort_index().drop_duplicates(keep=False)
+    result = pd.merge(gens,loads,left_index=True,right_index=True).sort_index().drop_duplicates(keep="first")
     result.to_csv("c2u6xt.csv",index=True,header=True)
     print("ok")
