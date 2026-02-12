@@ -54,7 +54,7 @@ if __name__ == "__main__":
         start="2017-01-01 07:00:00+0000",
         end="2018-01-01 06:00:00+0000",
         freq="1h"),inplace=True)
-    loads = [data.iloc[:-1]]
+    loads = [data]
     print("ok")
     
     print("Reading 2020-2023 loads",end="...",flush=True)
