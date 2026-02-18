@@ -1156,6 +1156,7 @@ if __name__ == "__main__":
     model = WECC240_2011()
     
     solver = PPSolver(model)
+    assert solver.solve_osp(), "OSP failed"
     assert solver.solve_opf(), "OPF failed"
     assert solver.solve_pf(), "PF failed"
 
