@@ -51,7 +51,10 @@ if __name__ == "__main__":
     model = WECC240_2018()
     
     solver = PPSolver(model)
-    assert solver.solve_opf(), "OPF failed"
+    model.options["VERBOSE"] = 3
+    model.options["OUT_ALL"] = 1
+    # model.options["OPF_ALG"] = 0
+    assert solver.solve_opf(use_acopf=True), "OPF failed"
     assert solver.solve_pf(), "PF failed"
 
     import pandas as pd
