@@ -12,6 +12,7 @@ pd.options.display.width = None
 pd.options.display.max_columns = None
 pd.options.display.max_rows = None
 
+# load the WECC GIS data
 gis = pd.read_csv("gis/wecc240.csv",
     # index_col=["COUNTY","BUS_I"],
     converters={
@@ -19,52 +20,17 @@ gis = pd.read_csv("gis/wecc240.csv",
         "LOAD":float,
     })
 
-# calculate county-level load contribution factors
+# calculate county-level/foreign node load contribution factors
 county_loads = gis.groupby("COUNTY")["LOAD"].sum().to_frame()
 county_loads = {x:y for x,y in county_loads.to_dict()["LOAD"].items() if x}
 gis["LOAD_CF"] = [(y/county_loads[x] if x in county_loads and county_loads[x] > 0 else 0.0) for x,y in gis[["COUNTY","LOAD"]].values]
+foreign_loads = gis[(gis.COUNTY=="")&(gis.GEN.isnull())].groupby("BA").sum().LOAD.to_frame()
+gis.set_index("BA",inplace=True)
+gis.loc[foreign_loads.index,"LOAD_CF"] = gis.loc[foreign_loads.index,"LOAD"] / foreign_loads.LOAD
+gis.reset_index(inplace=True)
 
-print(gis)
-
+print(gis.set_index(["BA","BUS_I"]).sort_index()[["NAME","LOAD","GEN","LOAD_CF","COUNTY","LAT","LON","GEOHASH"]])
 quit()
-
-# def get_county_from_latlon(latitude, longitude):
-#     """
-#     Returns the county and state for a given latitude and longitude
-#     using the U.S. Census Bureau Geocoder API.
-#     """
-#     url = "https://geocoding.geo.census.gov/geocoder/geographies/coordinates"
-#    
-#     params = {
-#         "x": longitude,
-#         "y": latitude,
-#         "benchmark": "Public_AR_Current",
-#         "vintage": "Current_Current",
-#         "format": "json"
-#     }
-#    
-#     response = requests.get(url, params=params)
-#     response.raise_for_status()
-#    
-#     data = response.json()
-#    
-#     try:
-#         county_info = data["result"]["geographies"]["Counties"][0]
-#         county = county_info["COUNTY"]
-#         state = county_info["STATE"]
-#         return f"{state}{county}"
-#     except (KeyError, IndexError):
-#         return None
-#
-# found = {}
-# for ndx,data in gis.iterrows():
-#
-#     if not data.GEOHASH in found:
-#         county = get_county_from_latlon(data.LAT,data.LON)
-#         found[data.GEOHASH] = county
-#     else:
-#         county = found[data.GEOHASH]
-#     print(ndx,*data[["LAT","LON","GEOHASH","NAME","GEN","LOAD","BA"]].values,county,flush=True,sep=",")
 
 dg = pd.read_csv("wecc240_2025_dg.csv",index_col=0,parse_dates=[0]).resample("1h").mean()/1000
 total = pd.read_csv("wecc240_2025_total.csv",index_col=0,parse_dates=[0])
@@ -87,6 +53,7 @@ if missing_dg_nodes:
         )
     dg = pd.concat([no_dg,dg],axis=1).fillna(0.0)
 
+# calculate net load
 net = (total - dg)[sorted(total.columns)]
 
 # identify nodes with DG but no load
