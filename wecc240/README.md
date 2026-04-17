@@ -12,3 +12,7 @@ This model was produced by NREL in 2018. The model is based on the `wecc240_2011
 
 This model was produced by NRL in 2026. The model is based on the `wecc240_2018` model with the `aggregate_load.py` and `aggregate_gens.py` scripts run to apply
 modifications to the loads and generation resources.  This model a quasi-steady time-series model designed to be run using `pypower_sim`. 
+
+## `wecc240_2025`
+
+This model was produced by LLNL in 2026 and reflects the system in Q3 2025. The model is based on the `wecc240_2020` model with updates for new generation and new loads, including data centers.
