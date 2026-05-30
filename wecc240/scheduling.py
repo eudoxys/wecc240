@@ -17,7 +17,7 @@ import numpy as np
 class Generator(pd.DataFrame):
     """Generator data frame implementation"""
 
-    SCHEDULEFILE = "data/WECC240_2018_Generation_scheduling.xlsx"
+    SCHEDULEFILE = __file__.replace("/scheduling.py","/data/WECC240_2018_Generation_scheduling.xlsx")
     """Schedule data file"""
 
     COLUMNS = ["busname","genname","Pmin","Pmax","Gen_Type",

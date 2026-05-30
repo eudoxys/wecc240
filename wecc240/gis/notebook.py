@@ -12,6 +12,30 @@ def _(mo):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    # Data flow
+    """)
+    return
+
+
+@app.cell
+def _(mo):
+    with open("README.md","r") as fh:
+        _graph = mo.mermaid(fh.read())
+    _graph
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    # Procedure
+    """)
+    return
+
+
 @app.cell
 def _(Total, pd):
     # Settings
@@ -118,13 +142,13 @@ def _(Total, county_st, hour_range, mo, os, pd, show_rows, wecc_counties):
 @app.cell(hide_code=True)
 def _(load_bus, load_nodes, mo):
     mo.md(rf"""
-    Step 2: Identify the load nodes as the {len(load_bus)} busses (`load_bus`) that have non-zero power demand. These are aggregated into {len(load_nodes)} load nodes (`load_nodes`).
+    Step 2: Identify the load nodes as the {len(load_bus)} busses (`load_bus`) that have non-zero power demand. These are aggregated into the {len(load_nodes)} load nodes (`load_nodes`) that have distributed generation data provisioned.
     """)
     return
 
 
 @app.cell
-def _(mo, pd, wecc_gis):
+def _(mo, nodedg_mw, pd, wecc_gis):
     # Aggregate counties to load nodes
     with mo.status.spinner("Aggregating loads to nodes"):
 
@@ -135,7 +159,8 @@ def _(mo, pd, wecc_gis):
         load_nodes = load_bus["BUS_LOAD_GW"].groupby("GEOHASH").sum().to_frame("NODE_LOAD_GW").sort_index()
 
         # Merge bus loads with bus nodes 
-        load_bus = pd.merge(load_bus,load_nodes,left_index=True,right_index=True)
+        _nodes = sorted(set(wecc_gis.index) & set(nodedg_mw.columns))
+        load_bus = pd.merge(load_bus,load_nodes,left_index=True,right_index=True).loc[_nodes]
 
         # Compute contribution factors of bus loads to node loads
         load_bus["LOAD_CF"] = load_bus["BUS_LOAD_GW"] / load_bus["NODE_LOAD_GW"]
@@ -251,7 +276,7 @@ def _(county_cf, county_node, np):
     for _counties in node_county.groupby("node")["county_st"].apply(list):
         if not np.allclose(county_cf[_counties].sum(axis=1).values,1.0):
             raise RuntimeError(f"ERROR: county_cf checksum failed for counties {_counties}:")
-    return (node_county,)
+    return
 
 
 @app.cell(hide_code=True)
@@ -266,70 +291,101 @@ def _(mo):
 def _(mo, pd, show_rows):
     # Read DG data
     with mo.status.spinner("Reading the simulated node DG"):
-        nodedg_mw = pd.read_csv("../data/dgen.csv.gz",index_col=[0],parse_dates=[0])/1000
+        nodedg_mw = pd.read_csv("wecc240_dg.csv.gz",index_col=[0],parse_dates=[0])/1000
         nodedg_mwh = nodedg_mw.resample("MS").sum()
     mo.accordion({
         "Table 6(a): `nodedg_mw`": nodedg_mw.iloc[:show_rows].round(3),
         "Table 6(b): `nodedg_mwh`": nodedg_mwh.round(1),
     })
-    return (nodedg_mwh,)
+    return (nodedg_mw,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    Step 7: Disaggregate the monthly node DG energy (`nodedg_mwh`) to monthly county DG energy (`countydg_mwh`)
+    Step 7: Add node hourly DG power (`nodedg_mw`) to simulated node hourly demand (`node_mw`) to generate hourly node demand power (`nodeld_mw`) and monthly node energy consumption (`nodeld_mwh`)
     """)
     return
 
 
 @app.cell
-def _(
-    county_cf,
-    county_mwh,
-    county_node,
-    mo,
-    month_range,
-    node_county,
-    nodedg_mwh,
-    pd,
-):
-    with mo.status.spinner("Disaggregating node energy to county energy"):
-        countydg_mwh = pd.DataFrame(
-            data={x:[0]*len(month_range) for x in county_mwh.columns},
-            index=month_range,
-        )
-        for _counties in node_county.groupby("node")["county"].apply(list):
-            for _county in _counties:
-                _node,_county_st = county_node.loc[_county][["node","county_st"]]
-                if _node in nodedg_mwh.columns:
-                    countydg_mwh[_county_st] += nodedg_mwh[_node] * county_cf[_county_st]
+def _(mo, node_mw, nodedg_mw, show_rows):
+    with mo.status.spinner("Calculating node hourly demand power and monthly energy"):
+        nodeld_mw = (node_mw + nodedg_mw)[node_mw.columns]
+        nodeld_mwh = nodeld_mw.resample("MS").sum()
     mo.accordion({
-        "Table 7: `countydg_mwh`": countydg_mwh.round(1),
+        "Table 7(a): `nodeld_mw`": nodeld_mw.iloc[:show_rows].round(3),
+        "Table 7(b): `nodeld_mwh`": nodeld_mwh.round(1),
     })
-    return (countydg_mwh,)
+    return (nodeld_mw,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    Step 8: Aggregate county DG monthly energy (`countydg_mwh`) to state DG monthly energy (`statedg_mwh`)
+    Step 8: Disaggregate hourly node load into hourly county hourly load and DG (`countyld_mw` and `countydg_mw`) and monthly energy consumption and production (`countyld_mwh`)
     """)
     return
 
 
 @app.cell
-def _(countydg_mwh, mo, month_range, pd, state_mwh):
-    with mo.status.spinner("Aggregating county monthly DG energy production to state monthly DG energy production"):
-        statedg_mwh = pd.DataFrame(
-            data={x:[0]*len(month_range) for x in state_mwh.columns},
-            index=month_range
-        )
-        for _county in countydg_mwh.columns:
-            _state = _county.split()[-1]
-            statedg_mwh[_state] += countydg_mwh[_county]
+def _(county_cf, county_node, mo, nodedg_mw, nodeld_mw, pd, show_rows):
+    with mo.status.spinner("Disaggregating node load and DG to county load and DG"):
+        countyld_mw = []
+        countydg_mw = []
+        cf = county_cf.resample("1h").ffill()
+        for _county,_data in county_node.set_index("county_st")[["node"]].iterrows():
+            countyld_mw.append(pd.DataFrame(
+                data={_county:nodeld_mw[_data["node"]] * cf[_county]},
+                index=nodeld_mw.index,
+            ))
+            countydg_mw.append(pd.DataFrame(
+                data={_county:nodedg_mw[_data["node"]] * cf[_county]},
+                index=nodeld_mw.index,
+            ))
+        countyld_mw = pd.concat(countyld_mw,axis=1)
+        countydg_mw = pd.concat(countydg_mw,axis=1)
+        countyld_mwh = countyld_mw.resample("MS").sum()
+        countydg_mwh = countydg_mw.resample("MS").sum()
     mo.accordion({
-        "Table 8: `statedg_mwh`": statedg_mwh.round(1),
+        "Table 8(a): `countyld_mw`": countyld_mw.iloc[:show_rows].round(3),
+        "Table 8(b): `countyld_mwh`": countyld_mwh.round(1),
+        "Table 8(c): `countydg_mw`": countydg_mw.iloc[:show_rows].round(3),
+        "Table 8(d): `countydg_mwh`": countydg_mwh.round(1),
+    })
+    return countydg_mw, countyld_mw
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Step 9: Aggregate hourly county load and DG (`countyld_mw` and `countydg_mw) to state hourly load and DG (`stateld_mw` and `statedg_mw) and compute the monthly state energy consumption and production (`stateld_mwh` and `statedg_mwh`)
+    """)
+    return
+
+
+@app.cell
+def _(countydg_mw, countyld_mw, hour_range, mo, pd, show_rows, wecc_states):
+    with mo.status.spinner("Aggregating hourly county load and DG and monthly county energy consumption and production"):
+        stateld_mw = pd.DataFrame(
+            data={x:[0]*len(hour_range) for x in wecc_states},
+            index=hour_range
+        )
+        statedg_mw = pd.DataFrame(
+            data={x:[0]*len(hour_range) for x in wecc_states},
+            index=hour_range
+        )
+        for _county in countyld_mw.columns:
+            _state = _county.split()[-1]
+            stateld_mw[_state] += countyld_mw[_county]
+            statedg_mw[_state] += countydg_mw[_county]
+        stateld_mwh = stateld_mw.resample("MS").sum()
+        statedg_mwh = statedg_mw.resample("MS").sum()
+    mo.accordion({
+        "Table 9(a): `stateld_mw`": stateld_mw.iloc[:show_rows].round(3),
+        "Table 9(b): `stateld_mwh`": stateld_mwh.round(1),
+        "Table 9(c): `statedg_mw`": statedg_mw.iloc[:show_rows].round(3),
+        "Table 9(d): `statedg_mwh`": statedg_mwh.round(1),
     })
     return (statedg_mwh,)
 
@@ -337,13 +393,13 @@ def _(countydg_mwh, mo, month_range, pd, state_mwh):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    Step 9: Read the monthly state energy consumption (`state_mwh`) from EIA.
+    Step 10: Read the monthly state energy consumption (`state_mwh`) from EIA and compute state energy demand (`demand_mwh`)
     """)
     return
 
 
 @app.cell
-def _(Energy, mo, pd, wecc_states, year_range):
+def _(Energy, mo, pd, statedg_mwh, wecc_states, year_range):
     # Read monthly energy usage from EIA
     with mo.status.spinner("Read monthly state energy"):
         state_mwh = []
@@ -351,27 +407,11 @@ def _(Energy, mo, pd, wecc_states, year_range):
             _mwh = Energy(_state,None,[min(year_range).year,max(year_range).year])
             state_mwh.append(_mwh.sum(axis=1).to_frame(_state))
         state_mwh = pd.concat(state_mwh,axis=1)
-    mo.accordion({
-        "Table 9: `state_mwh`": state_mwh.round(1),
-    })
-    return (state_mwh,)
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    Step 10: Add state monthly DG energy production (`statedg_mwh`) to state_energy consumption (`state_mwh`) to obtain state energy demand (`demand_mwh`).
-    """)
-    return
-
-
-@app.cell
-def _(mo, state_mwh, statedg_mwh):
     demand_mwh = state_mwh + statedg_mwh
     mo.accordion({
-        "Table 10: `demand_mwh`": demand_mwh.round(1)    
+        "Table 10(a): `state_mwh`": state_mwh.round(1),
+        "Table 10(b): `demand_mwh`": demand_mwh.round(1)    ,
     })
-
     return (demand_mwh,)
 
 
@@ -383,19 +423,17 @@ def _(mo):
     return
 
 
-app._unparsable_cell(
-    r"""
-    with mo.status.spinner("C")
-    total_mwh = pd.DataFrame(
-        data={x:[0]*len(month_range) for x in demand_mwh.columns},
-        index=month_range,
-    )
-    for _geohash,_data in county_node.iterrows():
-        total_mwh[_data["state"]] += county_mwh[_data["county_st"]]
+@app.cell
+def _(county_mwh, county_node, demand_mwh, mo, month_range, pd):
+    with mo.status.spinner("C"):
+        total_mwh = pd.DataFrame(
+            data={x:[0]*len(month_range) for x in demand_mwh.columns},
+            index=month_range,
+        )
+        for _geohash,_data in county_node.iterrows():
+            total_mwh[_data["state"]] += county_mwh[_data["county_st"]]
     mo.accordion({"Table 11: `total_mwh`": total_mwh.round(1)})
-    """,
-    name="_"
-)
+    return (total_mwh,)
 
 
 @app.cell(hide_code=True)
@@ -468,7 +506,7 @@ def _(
             _county_st = f"{_county} {_state}"
             _node = county_node.loc[_geohash]["node"]
             final_mw[_node] += actual_mw[_county_st]
-        final_mw.round(3).to_csv("wecc240_load.csv",index=True)
+        final_mw.round(3).to_csv("wecc240_load.csv.gz",index=True)
     mo.accordion({
         "Table 14: `final_mw`": node_mw.iloc[:show_rows].round(3),
     })

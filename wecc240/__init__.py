@@ -60,3 +60,4 @@ https://ieeexplore.ieee.org/abstract/document/9299666.
 """
 
 from .wecc240_2011 import WECC240_2011
+from .wecc240_2018 import WECC240_2018
