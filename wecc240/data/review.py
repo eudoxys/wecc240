@@ -16,17 +16,26 @@ def _(pd):
 def _(node_gis):
     from fips import Counties
     _weccfips=Counties(use_index="REGION",selection="CAISO").reset_index().set_index("FIPS").index.values.tolist()
-    caiso = node_gis[node_gis["COUNTY"].isin(_weccfips)]
+    caiso = {
+        "Node": node_gis[node_gis["COUNTY"].isin(_weccfips)],
+        "BA": node_gis[node_gis["BA"]=="CA"],
+    }
     return (caiso,)
 
 
 @app.cell
-def _(caiso, mo, node_gis, node_mw):
+def _(mo):
+    caiso_ui = mo.ui.dropdown(label="CAISO by:",options=["Node","BA"],value="Node")
+    return (caiso_ui,)
+
+
+@app.cell
+def _(caiso, caiso_ui, mo, node_gis, node_mw):
     # node dropdown
     _nodename = {y: f"{x} ({y})" for x, y in node_gis[["NAME", "GEOHASH"]].values}
     _options = {_nodename[x]: [x] for x in node_mw.columns}
     _options["WECC"] = node_mw.columns
-    _options["CAISO"] = [x for x in caiso["GEOHASH"].unique().tolist() if x in node_mw.columns]
+    _options["CAISO"] = [x for x in caiso[caiso_ui.value]["GEOHASH"].unique().tolist() if x in node_mw.columns]
     node_ui = mo.ui.dropdown(
         options={x:_options[x] for x in sorted(_options)},
         label="Node:",
@@ -65,7 +74,7 @@ def _(date_range, node_dg, node_mw, node_ui):
 
 
 @app.cell
-def _(date_ui, mo, node_ui, peak_net, peak_total, timeseries):
+def _(caiso_ui, date_ui, mo, node_ui, peak_net, peak_total, timeseries):
     mo.ui.tabs(
         {
             "Timeseries": mo.vstack(
@@ -74,6 +83,7 @@ def _(date_ui, mo, node_ui, peak_net, peak_total, timeseries):
                         [
                             node_ui,
                             date_ui,
+                            caiso_ui,
                             mo.md(
                                 f"Peaks: Total={peak_total:.1f} GW, Net={peak_net:.1f} GW"
                             ),

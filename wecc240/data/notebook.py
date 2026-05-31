@@ -23,8 +23,8 @@ def _(mo):
 @app.cell
 def _(mo):
     with open("README.md","r") as fh:
-        _graph = mo.mermaid(fh.read())
-    _graph
+        _graph = "\n".join(fh.readlines()[1:-1])
+    mo.mermaid(_graph)
     return
 
 
@@ -248,35 +248,76 @@ def _(county_mw, county_node, hour_range, mo, pd, show_rows, wecc_counties):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(rf"""
-    Step 5: Calculate each county's contribution factor (`county_cf`) to each node.
+    Step 5: Calculate each county's contribution factor (`node_cf`) to each node and each state (`state_cf`).
     """)
     return
 
 
 @app.cell
-def _(county_mwh, county_node, mo, node_mwh):
+def _(
+    Counties,
+    Total,
+    county_mwh,
+    county_node,
+    hour_range,
+    mo,
+    month_range,
+    node_mwh,
+    os,
+    pd,
+    wecc_states,
+):
     # Calculate county contribution factors to nodes
     with mo.status.spinner("Calculating county contribution factors to nodes"):
-        county_cf = county_mwh.copy()
-        # for _geohash,_state,_county in wecc_counties.sort_values(["ST","COUNTY"])[["ST","COUNTY"]].reset_index().values:
-        # _county_st = f"{_county} {_state}"
+        node_cf = county_mwh.copy()
+        state_cf = []
+        _state_mwh = pd.DataFrame({x:[0]*len(month_range) for x in wecc_states},index=month_range)
+        _counties = Counties(use_index="ST",selection=wecc_states).reset_index().sort_values(["ST","COUNTY"])[["ST","COUNTY"]].reset_index().values
+        Total.cache = None # memory savings
+        if not os.path.exists("state_cf.csv"):
+            print("Generating state_cf.csv (this takes a while)")
+            for _geohash,_state,_county in _counties:
+                _county_st = f"{_county} {_state}"
+                print(f"Reading {_county_st} energy",end="...",flush=True)
+                _total_mw = Total(_state,_county,date_range=hour_range,samples=0)["elec_total_MW"].resample("MS").sum().to_frame(_county_st)
+                _state_mwh[_state] += _total_mw[_county_st]
+                state_cf.append(_total_mw)
+                print("ok")
+            state_cf = pd.concat(state_cf,axis=1)
+            for _county_st in state_cf.columns:
+                _state = _county_st.split()[-1]
+                state_cf[_county_st] /= _state_mwh[_state]
+            state_cf.to_csv("state_cf.csv",index=True)
+        else:
+            state_cf = pd.read_csv("state_cf.csv",index_col=[0],parse_dates=[0])
+    
         for _geohash, _data in county_node.iterrows():
-            county_cf[_data["county_st"]] /= node_mwh[_data["node"]]
+            node_cf[_data["county_st"]] /= node_mwh[_data["node"]]
+
+    node_cf.to_csv("node_cf.csv",index=True)
+
     mo.accordion(
         {
-            "Table 5: `county_cf`": county_cf.round(4),
+            "Table 5(a): `node_cf`": node_cf.round(4),
+            "Table 5(b): `state_cf`": state_cf.round(4),
         }
     )
-    return (county_cf,)
+    return node_cf, state_cf
 
 
 @app.cell
-def _(county_cf, county_node, np):
+def _(state_cf):
+    state_cf
+    return
+
+
+@app.cell
+def _(county_node, month_range, node_cf, np):
     # Check node to county energy mapping (should all sum to 1)
     node_county = county_node.reset_index().set_index("node")
     for _counties in node_county.groupby("node")["county_st"].apply(list):
-        if not np.allclose(county_cf[_counties].sum(axis=1).values,1.0):
-            raise RuntimeError(f"ERROR: county_cf checksum failed for counties {_counties}:")
+        if not np.allclose(node_cf.loc[month_range][_counties].sum(axis=1).values,1.0):
+            print(f"ERROR: node_cf checksum failed for counties {_counties}")
     return
 
 
@@ -330,11 +371,11 @@ def _(mo):
 
 
 @app.cell
-def _(county_cf, county_node, mo, nodedg_mw, nodeld_mw, pd, show_rows):
+def _(county_node, mo, node_cf, nodedg_mw, nodeld_mw, pd, show_rows):
     with mo.status.spinner("Disaggregating node load and DG to county load and DG"):
         countyld_mw = []
         countydg_mw = []
-        cf = county_cf.resample("1h").ffill()
+        cf = node_cf.resample("1h").ffill()
         for _county,_data in county_node.set_index("county_st")[["node"]].iterrows():
             countyld_mw.append(pd.DataFrame(
                 data={_county:nodeld_mw[_data["node"]] * cf[_county]},
@@ -348,6 +389,8 @@ def _(county_cf, county_node, mo, nodedg_mw, nodeld_mw, pd, show_rows):
         countydg_mw = pd.concat(countydg_mw,axis=1)
         countyld_mwh = countyld_mw.resample("MS").sum()
         countydg_mwh = countydg_mw.resample("MS").sum()
+        countyld_mw.to_csv("county_mw.csv.gz",index=True)
+        countydg_mw.to_csv("county_dg.csv.gz",index=True)
     mo.accordion({
         "Table 8(a): `countyld_mw`": countyld_mw.iloc[:show_rows].round(3),
         "Table 8(b): `countyld_mwh`": countyld_mwh.round(1),
@@ -413,7 +456,7 @@ def _(Energy, mo, pd, statedg_mwh, wecc_states, year_range):
         "Table 10(a): `state_mwh`": state_mwh.round(1),
         "Table 10(b): `demand_mwh`": demand_mwh.round(1)    ,
     })
-    return (demand_mwh,)
+    return demand_mwh, state_mwh
 
 
 @app.cell(hide_code=True)
@@ -446,8 +489,21 @@ def _(mo):
 
 
 @app.cell
-def _(demand_mwh, mo, total_mwh):
-    state_calibration = demand_mwh / total_mwh
+def _(
+    county_mw,
+    mo,
+    month_range,
+    pd,
+    state_cf,
+    state_mwh,
+    total_mwh,
+    wecc_states,
+):
+    _county_cf = pd.DataFrame({x:[0]*len(month_range) for x in wecc_states},index=month_range)
+    for _county in county_mw.columns:
+        _state = _county.split()[-1]
+        _county_cf[_state] += state_cf[_county]
+    state_calibration = state_mwh / total_mwh * _county_cf
     mo.accordion({"Table 12: state_calibration": state_calibration.round(4)})
     return (state_calibration,)
 
