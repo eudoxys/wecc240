@@ -100,7 +100,7 @@ def _(mo, wecc_gis):
 def _(mo, pd):
     # Read WECC bus gis data
     with mo.status.spinner("Loading WECC GIS data"):
-        wecc_gis = pd.read_csv("wecc240.csv",
+        wecc_gis = pd.read_csv("../gis/wecc240.csv",
             index_col=["GEOHASH"],
             usecols=["GEOHASH","BUS_I","NAME","GEN","LOAD","LAT","LON"],
             converters={"COUNTY":str},
@@ -207,6 +207,7 @@ def _(load_bus, mo, nearest2, pd, wecc_counties, wecc_gis):
         ).set_index("county")
         county_node["county_st"] = [f"{x} {y}" for x,y in wecc_counties.loc[county_node.index][["COUNTY","ST"]].values]
         county_node["state"] = wecc_counties.loc[county_node.index]["ST"]
+        county_node.to_csv("county_node.csv",index=True)
     mo.accordion({
         "Table 3: `county_node`": county_node.sort_index(),
     })
