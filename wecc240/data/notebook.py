@@ -287,7 +287,7 @@ def _(
             for _county_st in state_cf.columns:
                 _state = _county_st.split()[-1]
                 state_cf[_county_st] /= _state_mwh[_state]
-            state_cf.to_csv("state_cf.csv",index=True)
+            state_cf.round(6).to_csv("state_cf.csv",index=True)
         else:
             state_cf = pd.read_csv("state_cf.csv",index_col=[0],parse_dates=[0])
     
@@ -303,12 +303,6 @@ def _(
         }
     )
     return node_cf, state_cf
-
-
-@app.cell
-def _(state_cf):
-    state_cf
-    return
 
 
 @app.cell
@@ -389,8 +383,8 @@ def _(county_node, mo, node_cf, nodedg_mw, nodeld_mw, pd, show_rows):
         countydg_mw = pd.concat(countydg_mw,axis=1)
         countyld_mwh = countyld_mw.resample("MS").sum()
         countydg_mwh = countydg_mw.resample("MS").sum()
-        countyld_mw.to_csv("county_mw.csv.gz",index=True)
-        countydg_mw.to_csv("county_dg.csv.gz",index=True)
+        countyld_mw.round(3).to_csv("county_mw.csv.gz",index=True,compression="gzip")
+        countydg_mw.round(3).to_csv("county_dg.csv.gz",index=True,compression="gzip")
     mo.accordion({
         "Table 8(a): `countyld_mw`": countyld_mw.iloc[:show_rows].round(3),
         "Table 8(b): `countyld_mwh`": countyld_mwh.round(1),

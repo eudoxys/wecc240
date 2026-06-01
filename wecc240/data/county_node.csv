@@ -136,50 +136,50 @@ county,node,county_st,state
 9xne77,9wve62,Washington CO,CO
 9xjy8w,9xkgmv,Weld CO,CO
 9xp5t3,9wve62,Yuma CO,CO
-9rtr4y,9rx7st,Ada ID,ID
-9rvpmc,c26crp,Adams ID,ID
+9rtr4y,9rwgcr,Ada ID,ID
+9rvpmc,9rwgcr,Adams ID,ID
 9x84yh,9rx7st,Bannock ID,ID
 9x8bd9,9x3mfn,Bear Lake ID,ID
 c2mh9g,c2kx95,Benewah ID,ID
 9x8jf7,9rx7st,Bingham ID,ID
-9rwyyg,9rx7st,Blaine ID,ID
-9rvdnz,9rx7st,Boise ID,ID
+9rwyyg,9rwgcr,Blaine ID,ID
+9rvdnz,9rwgcr,Boise ID,ID
 c2t4f7,c2kx95,Bonner ID,ID
 9x8wgg,9rx7st,Bonneville ID,ID
-c2tjkq,c2kx95,Boundary ID,ID
+c2tjkq,c2u6xt,Boundary ID,ID
 9rz888,9rx7st,Butte ID,ID
-9rwrkr,9rx7st,Camas ID,ID
-9rv00j,9rkf69,Canyon ID,ID
+9rwrkr,9rwgcr,Camas ID,ID
+9rv00j,9rwgcr,Canyon ID,ID
 9x8ems,9x3mfn,Caribou ID,ID
 9rx0w3,9rx7st,Cassia ID,ID
 9xb5gq,9rx7st,Clark ID,ID
 c2mc80,c2kx95,Clearwater ID,ID
-9rygb5,9rx7st,Custer ID,ID
-9rtyu7,9rx7st,Elmore ID,ID
+9rygb5,9rwgcr,Custer ID,ID
+9rtyu7,9rwgcr,Elmore ID,ID
 9x2rzm,9x27ep,Franklin ID,ID
 9xbex1,9rx7st,Fremont ID,ID
-9rv4xm,9rx7st,Gem ID,ID
-9rwk7p,9rx7st,Gooding ID,ID
+9rv4xm,9rwgcr,Gem ID,ID
+9rwk7p,9rwgcr,Gooding ID,ID
 c2juu6,c2r8x7,Idaho ID,ID
 9xb1hh,9rx7st,Jefferson ID,ID
-9rwdzg,9rx7st,Jerome ID,ID
+9rwdzg,9rwgcr,Jerome ID,ID
 c2mp0x,c2kx95,Kootenai ID,ID
 c2kfre,c2kx95,Latah ID,ID
 9rzp86,c2r8x7,Lemhi ID,ID
 c2jpn9,c2kx95,Lewis ID,ID
-9rwud3,9rx7st,Lincoln ID,ID
+9rwud3,9rwgcr,Lincoln ID,ID
 9xb955,9rx7st,Madison ID,ID
 9rx5y1,9rx7st,Minidoka ID,ID
 c2hzx4,c2kx95,Nez Perce ID,ID
 9rrzzx,9x27ep,Oneida ID,ID
-9rt6hn,9rkf69,Owyhee ID,ID
-9rufr6,9rx7st,Payette ID,ID
+9rt6hn,9rwgcr,Owyhee ID,ID
+9rufr6,9rwgcr,Payette ID,ID
 9rxfbh,9rx7st,Power ID,ID
 c2mt6g,c2kx95,Shoshone ID,ID
 9xbbvq,9rx7st,Teton ID,ID
-9rw2yw,9rx7st,Twin Falls ID,ID
-9rvz1j,c2r8x7,Valley ID,ID
-9ruuy5,c26crp,Washington ID,ID
+9rw2yw,9rwgcr,Twin Falls ID,ID
+9rvz1j,9rwgcr,Valley ID,ID
+9ruuy5,9rwgcr,Washington ID,ID
 c2p8z0,c2r8x7,Beaverhead MT,MT
 c85d36,c8h5zm,Big Horn MT,MT
 c8de82,c82vu4,Blaine MT,MT
@@ -229,7 +229,7 @@ c85wyx,c8h5zm,Treasure MT,MT
 c8s5h9,c8h5zm,Valley MT,MT
 c83bs0,c82vu4,Wheatland MT,MT
 c85j24,c8h5zm,Yellowstone MT,MT
-9whpkt,9we1bp,Bernalillo NM,NM
+9whpkt,9wdb95,Bernalillo NM,NM
 9w4bv7,9w1zzg,Catron NM,NM
 9tvty9,9w1zzg,Chaves NM,NM
 9w5nww,9w1zzg,Cibola NM,NM
@@ -244,18 +244,18 @@ c85j24,c8h5zm,Yellowstone MT,MT
 9tvpbq,9w1zzg,Lincoln NM,NM
 9wkkhc,9we1bp,Los Alamos NM,NM
 9terh5,9w1zzg,Luna NM,NM
-9w742t,9w1zzg,McKinley NM,NM
+9w742t,9wdb95,McKinley NM,NM
 9wmksq,9wve62,Mora NM,NM
 9tuc99,9w1zzg,Otero NM,NM
 9wkpsn,9we1bp,Rio Arriba NM,NM
-9w6zxn,9we1bp,San Juan NM,NM
+9w6zxn,9wdb95,San Juan NM,NM
 9wm3z4,9wve62,San Miguel NM,NM
 9w7gpb,9we1bp,Sandoval NM,NM
 9wkdh9,9we1bp,Santa Fe NM,NM
 9tgu2v,9w1zzg,Sierra NM,NM
 9w5cqe,9w1zzg,Socorro NM,NM
 9wsbh4,9wve62,Taos NM,NM
-9whsw6,9we1bp,Torrance NM,NM
+9whsw6,9wdb95,Torrance NM,NM
 9wqrt6,9wve62,Union NM,NM
 9whj98,9w1zzg,Valencia NM,NM
 9qfyep,9r4bc7,Carson City NV,NV
