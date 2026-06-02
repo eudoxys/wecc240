@@ -180,9 +180,13 @@ def _():
     import datetime as dt
     from fips import Counties
     from geohash import nearest2
+
+
     def nearest(location, locations):
         """Find nearest node to a bus"""
-        ix, ll, dist = nearest2((location.LAT, location.LON), locations[["LAT", "LON"]].values)
+        ix, ll, dist = nearest2(
+            (location.LAT, location.LON), locations[["LAT", "LON"]].values
+        )
         return locations.iloc[ix]
 
     return Counties, dt, mo, nearest, pd

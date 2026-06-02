@@ -16,15 +16,17 @@ def _(mo):
 def _(Counties, pd):
     def county_st(x):
         return [f"{x} {y}" for x, y in x[["COUNTY", "ST"]].values]
-    _counties = Counties(
-        use_index=["SYSTEM"], selection=["WECC"]
-    ).sort_values(["ST", "COUNTY"])
+
+
+    _counties = Counties(use_index=["SYSTEM"], selection=["WECC"]).sort_values(
+        ["ST", "COUNTY"]
+    )
     wecc_counties = county_st(_counties)
     wecc_states = sorted(_counties["ST"].unique())
     wecc_gis = pd.read_csv("../gis/wecc240.csv")
     caiso_nodes = wecc_gis.set_index("BA").loc["CA"]["GEOHASH"].unique().tolist()
     caiso_counties = county_st(_counties.set_index("REGION").loc["CAISO"])
-    noncaiso_counties = list(set(wecc_counties)-set(caiso_counties))
+    noncaiso_counties = list(set(wecc_counties) - set(caiso_counties))
     return caiso_counties, noncaiso_counties, wecc_counties
 
 
