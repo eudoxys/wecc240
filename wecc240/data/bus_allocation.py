@@ -53,57 +53,25 @@ def _(Counties, mo, pd):
     return wecc_counties, wecc_loads
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(mo, pd):
     with mo.status.spinner("Reading county total and DG data"):
         county_total = pd.read_csv("county_total.csv.gz",index_col=[0],parse_dates=[0])
         county_dg = pd.read_csv("county_dg.csv.gz",index_col=[0],parse_dates=[0])
-    mo.accordion({
-        "county_total": county_total.round(3),
-        "county_dg": county_dg.round(3),
-    })
     return county_dg, county_total
 
 
-@app.cell(hide_code=True)
-def _(county_total, dt, mo):
-    date_ui = mo.ui.date_range(
-        label="Date range:",
-        start=min(county_total.index).date(),
-        stop=max(county_total.index).date(),
-        value=(dt.date(2020, 8, 14), dt.date(2020, 8, 21)),
-    )
-    return (date_ui,)
-
-
-@app.cell(hide_code=True)
-def _(date_ui):
-    date_ui
-    return
-
-
-@app.cell(hide_code=True)
-def _(date_ui, pd):
-    date_range = pd.date_range(start=date_ui.value[0],end=date_ui.value[1],freq="1h",tz="UTC")
-    return (date_range,)
-
-
 @app.cell
-def _():
+def _(county_dg, county_total, date_range, mo):
+    mo.accordion({
+        "county_total": county_total.loc[date_range].round(3),
+        "county_dg": county_dg.loc[date_range].round(3),
+    })
     return
 
 
 @app.cell
-def _(
-    county_dg,
-    county_total,
-    date_range,
-    mo,
-    nearest,
-    pd,
-    wecc_counties,
-    wecc_loads,
-):
+def _(county_dg, county_total, mo, nearest, pd, wecc_counties, wecc_loads):
     with mo.status.spinner("Computing county load allocations to busses"):
         bus_total = pd.DataFrame(
             data={
@@ -143,13 +111,41 @@ def _(
                     bus_total[_bus] += county_total[_county] * _cf
                     bus_dg[_bus] += county_dg[_county] * _cf
                     print(f"bus {_bus} ({_target}) <-- {_cf:.4f} * {county_total[_county].max():.3f} ({_county}), total={bus_total[_bus].max():.3f}, dg={bus_dg[_bus].max():.3f}")
+    return bus_dg, bus_total
+
+
+@app.cell
+def _(bus_dg, bus_total, date_range, mo):
     mo.accordion(
         {
             "bus_total": bus_total.loc[date_range].round(3),
             "bus_dg": bus_dg.loc[date_range].round(3),
         }
     )
-    return bus_dg, bus_total
+    return
+
+
+@app.cell
+def _(dt, mo):
+    date_ui = mo.ui.date_range(
+        label="Date range:",
+        start="2018-01-01",
+        stop="2022-12-31",
+        value=(dt.date(2020, 8, 14), dt.date(2020, 8, 21)),
+    )
+    return (date_ui,)
+
+
+@app.cell
+def _(date_ui, pd):
+    date_range = pd.date_range(start=date_ui.value[0],end=date_ui.value[1],freq="1h",tz="UTC")
+    return (date_range,)
+
+
+@app.cell
+def _(date_ui):
+    date_ui
+    return
 
 
 @app.cell
@@ -160,11 +156,6 @@ def _(bus_dg, bus_total, county_dg, county_total, date_range, mo):
     | Total | {county_total.loc[date_range].sum(axis=1).max().round(1)/1000:.1f} GW | {bus_total.loc[date_range].sum(axis=1).max().round(1)/1000:.1f} GW|
     | DG | {county_dg.loc[date_range].sum(axis=1).max().round(1)/1000:.1f} GW | {bus_dg.loc[date_range].sum(axis=1).max().round(1)/1000:.1f} GW |
     """)
-    return
-
-
-@app.cell
-def _():
     return
 
 

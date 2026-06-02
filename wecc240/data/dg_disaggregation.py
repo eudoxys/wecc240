@@ -120,8 +120,8 @@ def _(mo):
 def _(county_mw, date_range, mo, node_dg, node_map, pd):
     with mo.status.spinner("Generating county DG and net load"):
         county_dg = pd.DataFrame(
-            data={x:[0]*len(date_range) for x in county_mw.columns},
-            index=date_range
+            data={x:[0]*len(county_mw) for x in county_mw.columns},
+            index=county_mw.index
         )
     
         for _node,_county in [(x,y) for x,y in node_map.items() if x in node_dg.columns]:
@@ -168,8 +168,9 @@ def _(
 
 
 @app.cell
-def _(county_dg):
-    county_dg.to_csv("county_dg.csv.gz",index=True,compression="gzip")
+def _(county_dg, mo):
+    with mo.status.spinner("Saving `county_dg.csv.gz`"):
+        county_dg.round(3).to_csv("county_dg.csv.gz",index=True,compression="gzip")
     return
 
 

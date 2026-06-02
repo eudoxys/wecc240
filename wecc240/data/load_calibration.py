@@ -164,8 +164,8 @@ def _(mo):
 
 
 @app.cell
-def _(caiso_ui):
-    caiso_ui
+def _(caiso_ui, mo, save_ui):
+    mo.hstack([caiso_ui,save_ui])
     return
 
 
@@ -191,10 +191,13 @@ def _(
 
 @app.cell
 def _(calibrated_mw, mo):
-    with mo.status.spinner("Saving calibrated loads to `county_total.csv.gz`"):
-        calibrated_mw.round(3).to_csv("county_total.csv.gz",index=True,compression="gzip")
-    mo.md("Calibrated load saved to `county_total.csv.gz`")
-    return
+    def save(*args,**kwargs):
+        with mo.status.spinner("Saving calibrated loads to `county_total.csv.gz`"):
+            calibrated_mw.round(3).to_csv("county_total.csv.gz",index=True,compression="gzip")
+        mo.md("Calibrated load saved to `county_total.csv.gz`")
+
+    save_ui = mo.ui.button(label="Save to `county_total_csv.gz`",on_click=save)
+    return (save_ui,)
 
 
 @app.cell
