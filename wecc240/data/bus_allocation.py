@@ -92,7 +92,7 @@ def _(county_dg, county_total, mo, nearest, pd, wecc_counties, wecc_loads):
             _county = _data["COUNTY_ST"]
             bus_total[_bus] += county_total[_county] * _cf
             bus_dg[_bus] += county_dg[_county] * _cf
-            print(f"bus {_bus} ({_county}) <-- {_cf:.4f} * {county_total[_county].max():.3f}, total={bus_total[_bus].max():.3f}, dg={bus_dg[_bus].max():.3f}")
+            # print(f"bus {_bus} ({_county}) <-- {_cf:.4f} * {county_total[_county].max():.3f}, total={bus_total[_bus].max():.3f}, dg={bus_dg[_bus].max():.3f}")
             _done.append(_county)
 
         # map counties with no busses to nearest node
@@ -110,7 +110,7 @@ def _(county_dg, county_total, mo, nearest, pd, wecc_counties, wecc_loads):
                 for _bus, _cf in _values:
                     bus_total[_bus] += county_total[_county] * _cf
                     bus_dg[_bus] += county_dg[_county] * _cf
-                    print(f"bus {_bus} ({_target}) <-- {_cf:.4f} * {county_total[_county].max():.3f} ({_county}), total={bus_total[_bus].max():.3f}, dg={bus_dg[_bus].max():.3f}")
+                    # print(f"bus {_bus} ({_target}) <-- {_cf:.4f} * {county_total[_county].max():.3f} ({_county}), total={bus_total[_bus].max():.3f}, dg={bus_dg[_bus].max():.3f}")
     return bus_dg, bus_total
 
 

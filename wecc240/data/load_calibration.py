@@ -17,24 +17,32 @@ def _(Counties, pd):
     def county_st(x):
         return [f"{x} {y}" for x, y in x[["COUNTY", "ST"]].values]
 
-
+    nonus = {
+        "Alberta CANADA":"../Canada/c2u6xt.csv",
+        "British Columbia CANADA":"../Canada/c2c10y.csv",
+        "Mexicali MEXICO":"../Mexico/9mtzm4.csv",
+    }
     _counties = Counties(use_index=["SYSTEM"], selection=["WECC"]).sort_values(
         ["ST", "COUNTY"]
     )
     wecc_counties = county_st(_counties)
     wecc_states = sorted(_counties["ST"].unique())
-    wecc_gis = pd.read_csv("../gis/wecc240.csv")
-    caiso_nodes = wecc_gis.set_index("BA").loc["CA"]["GEOHASH"].unique().tolist()
+    wecc_gis = pd.read_csv("../gis/wecc240.csv",converters={"COUNTY":str}).rename({"GEOHASH":"NODE"},axis=1)
+    caiso_nodes = wecc_gis.set_index("BA").loc["CA"]["NODE"].unique().tolist()
     caiso_counties = county_st(_counties.set_index("REGION").loc["CAISO"])
-    noncaiso_counties = list(set(wecc_counties) - set(caiso_counties))
-    return caiso_counties, noncaiso_counties, wecc_counties
+    noncaiso_counties = list(set(wecc_counties) - set(caiso_counties)) + list(nonus)
+    return caiso_counties, noncaiso_counties, nonus
 
 
 @app.cell
-def _(mo, pd):
+def _(mo, nonus, pd):
     with mo.status.spinner("Reading county load and DG data"):
-        county_mw = pd.read_csv("county_mw.csv.gz",index_col=[0],parse_dates=[0])
-        county_dg = pd.read_csv("county_dg.csv.gz",index_col=[0],parse_dates=[0])
+        _us = pd.read_csv("county_mw.csv.gz",index_col=[0],parse_dates=[0])
+        _nonus = [pd.read_csv(y,index_col=[0],parse_dates=[0])["load_MW"].to_frame(x) for x,y in nonus.items()]
+        county_mw = pd.concat(_nonus+[_us],axis=1,sort=True)
+        _dg = pd.read_csv("county_dg.csv.gz",index_col=[0],parse_dates=[0])
+        _nonus = [pd.DataFrame({x:[0]*len(_dg.index)},_dg.index) for x in nonus]
+        county_dg = pd.concat(_nonus+[_dg],axis=1,sort=True)
     return county_dg, county_mw
 
 
@@ -129,11 +137,11 @@ def _(
     wecc_scale,
 ):
     mo.md(f"""
-    |  | CAISO Peak | WECC Peak | Total Peak | |
+    |  | CAISO Peak | non-CAISO Peak | WECC Peak | |
     | ---------- | ----- | ---- | --- | --- |
     | **Model total load** | {caiso_peak_mw/1000:.3f} GW | {wecc_peak_mw/1000:.3f} GW | {(wecc_peak_mw+caiso_peak_mw)/1000:.3f} GW |
     | **Model DG** | {caiso_peak_dg/1000:.3f} GW | {wecc_peak_dg/1000:.3f} GW | {(wecc_peak_dg+caiso_peak_dg)/1000:.3f} GW |
-    | **Target net peak** | {caiso_peak_ui} GW | | {total_peak_ui} GW | {reset_ui} |
+    | **Target net peak** | {caiso_peak_ui} GW | {total_peak_ui.value-caiso_peak_ui.value:.3f} GW | {total_peak_ui} GW | {reset_ui} |
     | **Peak calibration factor** | {caiso_scale:.3f} | {wecc_scale:.3f} |
     | **Calibrated total peak** | {caiso_peak_calibrated/1000:.3f} GW | {wecc_peak_calibrated/1000:.3f} GW | {(caiso_peak_calibrated+wecc_peak_calibrated)/1000:.3f} GW |
     | **Calibrated net peak** | {(caiso_peak_calibrated-caiso_peak_dg)/1000:.3f} GW | {(wecc_peak_calibrated-wecc_peak_dg)/1000:.3f} GW | {(caiso_peak_calibrated-caiso_peak_dg+wecc_peak_calibrated-wecc_peak_dg)/1000:.3f} GW
@@ -159,13 +167,32 @@ def _(
 
 @app.cell
 def _(mo):
-    caiso_ui = mo.ui.checkbox(label="Plot CAISO only")
+    caiso_ui = mo.ui.checkbox(label="Show CAISO only")
+    caiso_ui
     return (caiso_ui,)
 
 
 @app.cell
-def _(caiso_ui, mo, save_ui):
-    mo.hstack([caiso_ui,save_ui])
+def _(
+    caiso_counties,
+    caiso_ui,
+    calibrated_mw,
+    calibrated_net,
+    county_dg,
+    date_range,
+    mo,
+    noncaiso_counties,
+    plot,
+):
+    _counties = caiso_counties + ([] if caiso_ui.value else noncaiso_counties)
+    mo.ui.tabs({
+        "Plot": plot,
+        "Data": mo.ui.tabs({
+            "Load": calibrated_mw.loc[date_range][_counties].round(3),
+            "DG": county_dg.loc[date_range][_counties].round(3),
+            "Net": calibrated_net.loc[date_range][_counties].round(3),
+        })
+    })
     return
 
 
@@ -177,27 +204,48 @@ def _(
     calibrated_net,
     date_range,
     mo,
-    wecc_counties,
+    noncaiso_counties,
 ):
     with mo.status.spinner("Generating plot"):
-        _options = dict(grid=True,figsize=(10,7),title=f"{'CAISO' if caiso_ui.value else 'WECC'} calibrated county loads")
-        _counties = caiso_counties if caiso_ui.value else wecc_counties
-        _ax = calibrated_mw.loc[date_range][_counties].sum(axis=1).plot()
-        calibrated_net.loc[date_range][_counties].sum(axis=1).plot(ax=_ax,**_options)
-        _ax.legend(["Total load","Net Load"])
-    mo.mpl.interactive(_ax)
+        _options = dict(
+            grid=True,
+            figsize=(10, 7),
+            title=f"{'CAISO' if caiso_ui.value else 'WECC'} calibrated county loads",
+            xlabel="Date/Time (UTC)",
+            ylabel="Load (GW)",
+        )
+        _counties = caiso_counties + ([] if caiso_ui.value else noncaiso_counties)
+        plot = (calibrated_mw.loc[date_range][_counties].sum(axis=1) / 1000).plot()
+        (calibrated_net.loc[date_range][_counties].sum(axis=1) / 1000).plot(
+            ax=plot, **_options
+        )
+        plot.legend(["Total load", "Net Load"])
+    return (plot,)
+
+
+@app.cell
+def _(calibrated_mw, date_range, mo):
+    def save(*args,**kwargs):
+        with mo.status.spinner("Saving calibrated loads to `county_total.csv.gz`"):
+            _range = calibrated_mw.index if all_ui.value else date_range
+            calibrated_mw.loc[_range].round(3).to_csv("county_total.csv.gz",index=True,compression="gzip")
+        mo.md("Calibrated load saved to `county_total.csv.gz`")
+
+    save_ui = mo.ui.button(label="Save to `county_total_csv.gz`",on_click=save)
+    all_ui = mo.ui.checkbox(label="Save all data")
+    return all_ui, save_ui
+
+
+@app.cell
+def _(all_ui, mo, save_ui):
+    mo.hstack([all_ui,save_ui],justify='start')
     return
 
 
 @app.cell
-def _(calibrated_mw, mo):
-    def save(*args,**kwargs):
-        with mo.status.spinner("Saving calibrated loads to `county_total.csv.gz`"):
-            calibrated_mw.round(3).to_csv("county_total.csv.gz",index=True,compression="gzip")
-        mo.md("Calibrated load saved to `county_total.csv.gz`")
-
-    save_ui = mo.ui.button(label="Save to `county_total_csv.gz`",on_click=save)
-    return (save_ui,)
+def _():
+    # county_dg.T[county_dg.sum(axis=0)>0].T.columns
+    return
 
 
 @app.cell

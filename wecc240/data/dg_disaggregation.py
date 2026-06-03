@@ -7,7 +7,7 @@ app = marimo.App(width="medium")
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    This notebook disaggregates node DG to counties.
+    This notebook disaggregates node DG to counties loads.
     """)
     return
 
@@ -41,7 +41,7 @@ def _(mo):
 def _(mo, pd):
     with mo.status.spinner("Reading county load and node DG data"):
         county_mw = pd.read_csv("county_mw.csv.gz",index_col=[0],parse_dates=[0])
-        node_dg = (pd.read_csv("wecc240_dg.csv.gz",index_col=[0],parse_dates=[0])/1000).round(3)
+        node_dg = (pd.read_csv("node_dg.csv.gz",index_col=[0],parse_dates=[0])/1000).round(3)
     return county_mw, node_dg
 
 
@@ -158,11 +158,19 @@ def _(
     mo,
     wecc_counties,
 ):
-    _options = dict(grid=True,figsize=(10,7),title=f"{'CAISO' if caiso_ui.value else 'WECC'} County loads")
-    _counties = caiso_counties if caiso_ui.value else wecc_counties
-    _ax = county_mw.loc[date_range][_counties].sum(axis=1).plot()
-    county_net.loc[date_range][_counties].sum(axis=1).plot(ax=_ax,**_options)
-    _ax.legend(["Total load","Net Load"])
+    _options = dict(
+        grid=True,
+        figsize=(10, 7),
+        title=f"{'CAISO' if caiso_ui.value else 'WECC'} County loads",
+        xlabel="Date/Time (UTC)",
+        ylabel="Load (GW)",
+    )
+    _counties = caiso_counties if caiso_ui.value else (caiso_counties+wecc_counties)
+    _ax = (county_mw.loc[date_range][_counties].sum(axis=1) / 1000).plot()
+    (county_net.loc[date_range][_counties].sum(axis=1) / 1000).plot(
+        ax=_ax, **_options
+    )
+    _ax.legend(["Total load", "Net Load"])
     mo.mpl.interactive(_ax)
     return
 
