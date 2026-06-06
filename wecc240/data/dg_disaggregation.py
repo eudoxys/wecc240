@@ -99,7 +99,7 @@ def _(mo, node_dg):
         for x in range(0, len(node_dg.columns), _pagewidth)
     ]
     nodes_first = mo.ui.button(
-        label="&lt;&lt;",
+        label="|&lt;",
         on_click=lambda x: set_nodes_page(0),
     )
     nodes_previous = mo.ui.button(
@@ -111,7 +111,7 @@ def _(mo, node_dg):
         on_click=lambda x: set_nodes_page(min(get_nodes_page() + 1,len(nodes_pages)-1)),
     )
     nodes_last = mo.ui.button(
-        label="&gt;&gt;",
+        label="&gt;|",
         on_click=lambda x: set_nodes_page(len(nodes_pages)-1),
     )
     return (
@@ -148,18 +148,14 @@ def _(
     nodes_ui = mo.hstack(
         [
             date_ui,
-            mo.hstack(
-                [
-                    mo.md("Nodes:"),
-                    nodes_first,
-                    nodes_previous,
-                    nodes_select,
-                    nodes_next,
-                    nodes_last,
-                ],
-                justify="start",
-            ),
-        ]
+            mo.md("Nodes:"),
+            nodes_first,
+            nodes_previous,
+            nodes_select,
+            nodes_next,
+            nodes_last,
+        ],
+    justify="start",
     )
     return (nodes_ui,)
 
@@ -338,7 +334,7 @@ def _(bus_dg, mo):
         for x in range(0, len(bus_dg.columns), _pagewidth)
     ]
     busses_first = mo.ui.button(
-        label="&lt;&lt;",
+        label="|&lt;",
         on_click=lambda x: set_busses_page(0),
     )
     busses_previous = mo.ui.button(
@@ -352,7 +348,7 @@ def _(bus_dg, mo):
         ),
     )
     busses_last = mo.ui.button(
-        label="&gt;&gt;",
+        label="&gt;|",
         on_click=lambda x: set_busses_page(len(busses_pages) - 1),
     )
     return (
@@ -470,10 +466,10 @@ def _(save_ui):
 @app.cell
 def _(bus_dg, mo):
     def save(*args,**kwargs):
-        with mo.status.spinner("Saving `bus_dg` to `wecc240_dg.csv.gz`"):
-            bus_dg.round(3).to_csv("wecc240_dg.csv.gz",index=True,header=True,compression="gzip")
+        with mo.status.spinner("Saving `bus_dg` to `bus_dg.csv.gz`"):
+            bus_dg.round(3).to_csv("bus_dg.csv.gz",index=True,header=True,compression="gzip")
 
-    save_ui = mo.ui.button(label="Save `bus_dg` to `wecc240_dg.csv.gz`",on_click=save)
+    save_ui = mo.ui.button(label="Save `bus_dg` to `bus_dg.csv.gz`",on_click=save)
     return (save_ui,)
 
 
