@@ -17,4 +17,5 @@ flowchart LR
     sum1((+)) --elec_total_mw--> county_mw[(county_mw.csv)] --county_mw--> mul1
 
     wecc240 --load>0--> load_bus --bus_cf--> mul1
-    mul1((x)) --bus_mw--> wecc_load[(wecc_load.csv)]```
+    mul1((x)) --bus_mw--> wecc_load[(wecc_load.csv)]
+```
