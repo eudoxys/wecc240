@@ -2,20 +2,24 @@
 ```mermaid
 flowchart LR
 
-    EIA --Form 861M--> state_mwh(state_mwh.py)
-    EIA --Form 923--> state_mwh
-    state_mwh(state_mwh.py) --state_mwh--> energy[(state_mwh.csv)]
+    EIA --Form 861M-->  eia/hs862m.py(eia/hs861m) ---> state_mwh
+    state_mwh(state_mwh.py) --state_mwh--> energy[(state_mwh.csv)] --load--> load_calibration
 
-    NLR --Solar DG--> node_dg[(node_dg.csv)] --node_dg--> dg_disaggregation
-    NLR --WECC GIS--> wecc240[(../gis/wecc240.csv)] --load>0--> dg_disaggregation
+    NLR --Solar DG---> node_dg[(node_dg.csv)] --node_dg--> dg_disaggregation
+    NLR --WECC GIS---> wecc240[(wecc240.csv)] --load>0--> dg_disaggregation
     dg_disaggregation(dg_disaggregation.py) --bus_dg--> bus_dg[(bus_dg.csv)]
 
-    NLR --COMstock--> sum1
-    NLR --RESstock--> sum1
-    NLR --Industry--> sum1
-    NLR --Agriculture--> sum1
-    sum1((+)) --elec_total_mw--> county_mw[(county_mw.csv)] --county_mw--> mul1
+    NLR --COMstock--> loads
+    NLR --RESstock--> loads
+    NLR --Industry--> loads
+    NLR --Agriculture--> loads
+    loads(loads/total.py) --elec_total_mw--> county_mw[(county_mw.csv)] --> load_disaggregation
+    
+    wecc240 --load>0--> load_disaggregation --> bus_mw[(bus_mw.csv)]
+    load_disaggregation(load_disaggregation.py)
 
-    wecc240 --load>0--> load_bus --bus_cf--> mul1
-    mul1((x)) --bus_mw--> wecc_load[(wecc_load.csv)]
+    bus_dg --> load_calibration
+    bus_mw --> load_calibration
+    load_calibration(load_calibration.py) --> wecc240_load
+    wecc240_load[(wecc240_load.csv)]
 ```

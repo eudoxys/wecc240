@@ -24,7 +24,7 @@ def _(Form923, mo, pd, states):
         gen = []
         for year in range(2018,2023):
             gen.append(Form923(year,states=states))
-        gen = pd.concat(gen).groupby(["timestamp","state"]).sum().round(3)
+        gen = pd.concat(gen).groupby(["timestamp","state"]).sum().rename({"gen_mwh":"gen"},axis=1).round(3)
 
     mo.accordion({"`gen` (Form 923 data)":gen})
     return (gen,)
@@ -45,7 +45,7 @@ def _(HS861m, dt, mo, pd, states):
         load = (
             pd.concat(load)
             .set_index(["timestamp", "state"])
-            .rename({"tot_energy_mwh": "load_mwh"}, axis=1)
+            .rename({"tot_energy_mwh": "load"}, axis=1)
             .sort_index()
         )
 
@@ -61,7 +61,7 @@ def _(Form861m, mo, pd, states):
             for _month in range(1,13):
                 _df = Form861m(_year,_month)[["date","state","tot_mwh"]].rename({"date":"timestamp"},axis=1)
                 dg.append(_df[_df["state"].isin(states)])
-        dg = pd.concat(dg).set_index(["timestamp","state"]).rename({"tot_mwh":"dg_mwh"},axis=1).sort_index()
+        dg = pd.concat(dg).set_index(["timestamp","state"]).rename({"tot_mwh":"dg"},axis=1).sort_index()
 
     mo.accordion({"`dg` (Form 861m data):": dg})
     return (dg,)
@@ -72,24 +72,6 @@ def _(dg, gen, load, pd):
     state_mwh = pd.concat([gen, load, dg], axis=1).fillna(0)
     state_mwh.to_csv("state_mwh.csv")
     return (state_mwh,)
-
-
-@app.cell
-def _(state_mwh):
-    _df = (
-        state_mwh.groupby("timestamp")
-        .sum()
-        .rename({"load_mwh": "Load", "dg_mwh": "DG"}, axis=1)
-        / 1e6
-    )
-    plot_mwh = _df.plot(
-        figsize=(10, 7),
-        grid=True,
-        ylabel="Monthly energy (TWH)",
-        xlabel="Date/Time (UTC)",
-        title="EIA Monthly Energy",
-    )
-    return
 
 
 @app.cell
@@ -104,7 +86,7 @@ def _(mo, state_mwh, state_ui):
         _df = state_mwh.groupby("timestamp").sum()/1e6
     else:
         _df = state_mwh.groupby(["state","timestamp"]).sum().loc[state_ui.value]/1e6
-    _df.columns = [x.replace("_mwh","_twh") for x in _df.columns]
+    _df.columns = [x for x in _df.columns]
 
     _plt = _df.plot(
         figsize=(10, 7),

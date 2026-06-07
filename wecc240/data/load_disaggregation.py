@@ -455,8 +455,12 @@ def _():
 @app.cell
 def _(bus_mw, county_load, county_mw, date_range):
     _ax = bus_mw.loc[date_range].sum(axis=1).to_frame("bus_mw").plot()
-    county_load.loc[date_range].sum(axis=1).to_frame("county_load").plot(ax=_ax)
-    county_mw.loc[date_range].sum(axis=1).to_frame("county_mw").plot(ax=_ax)
+    county_load.loc[date_range].sum(axis=1).to_frame("county_load").plot(
+        ax=_ax, marker="."
+    )
+    county_mw.loc[date_range].sum(axis=1).to_frame("county_mw").plot(
+        ax=_ax, grid=True, xlabel="Date/Time (UTC)", ylabel="Load (MW)", color="k"
+    )
     _ax.legend()
     return
 
