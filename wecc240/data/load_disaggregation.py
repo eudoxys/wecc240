@@ -237,7 +237,7 @@ def _(mo):
     mo.md(r"""
     ## County Aggregation
 
-    Not all counties in WECC have nodes in the WECC model. This procedure determines which counties are aggregated on their proximmity to counties with nodes.
+    Not all counties in WECC have nodes in the WECC model. This procedure determines which counties without nodes are aggregated based on their proximity to counties with nodes.
     """)
     return
 
@@ -341,14 +341,14 @@ def _(mo):
 
 
 @app.cell
-def _(county_mw, load_bus, mo, pd, wecc_gis):
+def _(county_load, county_mw, load_bus, mo, pd, wecc_gis):
     with mo.status.spinner("Disaggregating county loads to busses"):
         bus_mw = pd.DataFrame(
-            data={x:[0]*len(county_mw.index) for x in wecc_gis["BUS_I"]},
+            data={x: [0.0] * len(county_mw.index) for x in wecc_gis["BUS_I"]},
             index=county_mw.index,
         )
-        for _bus,_county,_cf in load_bus[["BUS_I","COUNTY_ST","COUNTY_CF"]].values:
-            bus_mw[_bus] += county_mw[_county] * _cf
+        for _bus, _county, _cf in load_bus[["BUS_I", "COUNTY_ST", "COUNTY_CF"]].values:
+            bus_mw[_bus] = county_load[_county] * _cf
     return (bus_mw,)
 
 
@@ -448,7 +448,9 @@ def _(bus_mw, mo):
 
 
 @app.cell
-def _():
+def _(bus_mw, mo):
+    bus_ui = mo.ui.dropdown(options=bus_mw.columns,value=bus_mw.columns[0])
+    bus_ui
     return
 
 
