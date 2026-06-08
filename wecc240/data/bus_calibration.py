@@ -306,11 +306,10 @@ def _(
                 wecc_offset_mw = 0
 
     mo.md(f"""
-    | | Peak | Date/Time | Adjusted Peak |
+    | System | Original Peak (GW) | Date/Time | Adjusted Peak (GW) |
     | --- | --- | --- | --- |
-    | CAISO | {_caisopeak/1000:.3f} GW | {_weccpeaktime:%m/%d/%y %H:%M %Z} | {(_caisopeak+caiso_offset_mw)/1000:.3f} GW |
-    | WECC | {_weccpeak/1000:.3f} GW | {_caisopeaktime:%m/%d/%y %H:%M %Z} | {(_weccpeak+wecc_offset_mw)/1000:.3f} 
-
+    | WECC | {_weccpeak/1000:.3f} | {_caisopeaktime:%m/%d/%y %H:%M %Z} | {(_weccpeak+wecc_offset_mw)/1000:.3f} |
+    | CAISO | {_caisopeak/1000:.3f} | {_weccpeaktime:%m/%d/%y %H:%M %Z} | {(_caisopeak+caiso_offset_mw)/1000:.3f} |
     """)
     return caiso_offset_mw, wecc_load, wecc_offset_mw
 
