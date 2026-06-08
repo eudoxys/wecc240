@@ -7,7 +7,7 @@ app = marimo.App(width="medium")
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    THIS NOTEBOOK IS NOT LONGER USED
+    # **<font color=red>THIS NOTEBOOK IS DEPRECATED</font>**
     """)
     return
 

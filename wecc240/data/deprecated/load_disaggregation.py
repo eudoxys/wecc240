@@ -7,6 +7,14 @@ app = marimo.App(width="full")
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    # **<font color=red>THIS NOTEBOOK IS DEPRECATED</font>**
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     This notebook disaggregates county loads to WECC 240 busses as shown in Figure 1.
     """)
     return
@@ -321,7 +329,6 @@ def _(county_map, county_mw, mo, pd):
         )
         for _county, _data in county_map.iterrows():
             county_load[_data["COUNTY_AGGR"]] += county_mw[_county]
-
     return (county_load,)
 
 

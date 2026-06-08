@@ -7,6 +7,14 @@ app = marimo.App(width="medium")
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    # **<font color=red>THIS NOTEBOOK IS DEPRECATED</font>**
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     This notebook allocates county loads to nodes.
     """)
     return
@@ -82,7 +90,7 @@ def _(county_total, date_range, load_nodes, mo, nearest, pd, wecc_counties):
 
     for _county,_node in county_node.items():
         node_total[_node] += county_total[_county]
-    
+
     mo.accordion({
         "node_total": node_total,
         "county_node": county_node,

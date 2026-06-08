@@ -249,6 +249,7 @@ def _(
 
 @app.cell
 def _(
+    bus_dg,
     bus_load,
     caiso_busses,
     date_range,
@@ -305,11 +306,15 @@ def _(
             else:
                 wecc_offset_mw = 0
 
+        wecc_load += bus_dg
+        _wecc_total = wecc_load.sum(axis=1).max()
+        _caiso_total = wecc_load[caiso_busses].sum(axis=1).max()
+
     mo.md(f"""
-    | System | Original Peak (GW) | Date/Time | Adjusted Peak (GW) |
-    | --- | --- | --- | --- |
-    | WECC | {_weccpeak/1000:.3f} | {_caisopeaktime:%m/%d/%y %H:%M %Z} | {(_weccpeak+wecc_offset_mw)/1000:.3f} |
-    | CAISO | {_caisopeak/1000:.3f} | {_weccpeaktime:%m/%d/%y %H:%M %Z} | {(_caisopeak+caiso_offset_mw)/1000:.3f} |
+    | System | Original Peak (GW) | Date/Time | Total Peak (GW) | Net peak (GW) | 
+    | --- | --- | --- | --- | --- |
+    | WECC | {_weccpeak/1000:.3f} | {_caisopeaktime:%m/%d/%y %H:%M %Z} | {_wecc_total/1000:.3f} |{(_weccpeak+wecc_offset_mw)/1000:.3f} |
+    | CAISO | {_caisopeak/1000:.3f} | {_weccpeaktime:%m/%d/%y %H:%M %Z} | {_caiso_total/1000:.3f} |{(_caisopeak+caiso_offset_mw)/1000:.3f} |
     """)
     return caiso_offset_mw, wecc_load, wecc_offset_mw
 

@@ -18,8 +18,8 @@ flowchart LR
     wecc240 --load>0--> load_disaggregation --> bus_mw[(bus_mw.csv)]
     load_disaggregation(load_disaggregation.py)
 
-    bus_dg --> load_calibration
-    bus_mw --> load_calibration
-    load_calibration(load_calibration.py) --> wecc240_load
+    bus_dg --> bus_calibration
+    bus_mw --> bus_calibration
+    bus_calibration(bus_calibration.py) --> wecc240_load
     wecc240_load[(wecc240_load.csv)]
 ```
