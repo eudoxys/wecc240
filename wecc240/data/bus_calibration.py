@@ -41,10 +41,12 @@ def _(Counties, mo, pd):
             left_on="FIPS",
             right_on="FIPS",
         ).set_index("BUS_I")[["COUNTY","STATE","NODE","NAME","BA"]]
-        load_busses = _wecc240[_wecc240["LOAD"]>0]["BUS_I"].tolist()
+        wecc_busses = _wecc240[_wecc240["LOAD"]>0]["BUS_I"].tolist()
+        caiso_busses = _wecc240[(_wecc240["LOAD"]>0)&(_wecc240["BA"]=="CA")]["BUS_I"].tolist()
+        noncaiso_busses = list(set(wecc_busses) - set(caiso_busses))
 
     mo.accordion({"`wecc_gis`":wecc_gis})
-    return load_busses, wecc_gis
+    return caiso_busses, noncaiso_busses, wecc_busses, wecc_gis
 
 
 @app.cell
@@ -165,8 +167,8 @@ def _(bus_dg, bus_net, state_mwh, wecc_gis):
 
 
 @app.cell
-def _(bus_load, date_range, load_busses, mo):
-    _df = bus_load.loc[date_range,load_busses]
+def _(bus_load, date_range, mo, wecc_busses):
+    _df = bus_load.loc[date_range,wecc_busses]
     mo.accordion({
         "`bus_load`": mo.ui.tabs({
             "Data": _df.round(1),
@@ -177,50 +179,140 @@ def _(bus_load, date_range, load_busses, mo):
 
 
 @app.cell
-def _(bus_load, date_range, load_busses):
-    _loads = bus_load.loc[date_range,load_busses]
-    low,high = _loads.sum(axis=1).min()/1e3,_loads.sum(axis=1).max()/1e3
+def _(bus_load, caiso_busses, date_range, wecc_busses):
+    _loads = bus_load.loc[date_range,wecc_busses]
+    wecc_high = _loads.sum(axis=1).max()/1e3
+    caiso_high = _loads[caiso_busses].sum(axis=1).max()/1e3
     return
-
-
-@app.cell
-def _(get_high, mo, set_high):
-    high_ui = mo.ui.text(label=f"WECC peak adjustment (GW)",value=get_high(),on_change=set_high,debounce=True)
-    return (high_ui,)
 
 
 @app.cell
 def _(mo):
-    get_high,set_high = mo.state(None)
-    def do_reset(*args,**kwargs):
-        set_high(f"162.017")
-    do_reset()
-    reset_ui = mo.ui.button(label="Reset",on_click=do_reset)
-    return get_high, reset_ui, set_high
+    get_wecc_high,set_wecc_high = mo.state(None)
+    def do_wecc_reset(*args,**kwargs):
+        set_wecc_high(f"162.017")
+    do_wecc_reset()
+    wecc_reset_ui = mo.ui.button(label="Reset",on_click=do_wecc_reset)
+    return get_wecc_high, set_wecc_high, wecc_reset_ui
 
 
 @app.cell
-def _(high_ui, mo, offset_mw, reset_ui):
-    _offset = "**invalid**" if offset_mw is None else f"{offset_mw/1e3:.3f} GW"
-    mo.hstack([high_ui,reset_ui,mo.md(f"(current load adjustment is {_offset})")],justify='start')
+def _(get_wecc_high, mo, set_wecc_high):
+    wecc_high_ui = mo.ui.text(
+        label=f"WECC peak adjustment (GW)",
+        value=get_wecc_high(),
+        on_change=set_wecc_high,
+        debounce=True,
+    )
+    return (wecc_high_ui,)
+
+
+@app.cell
+def _(mo):
+    get_caiso_high,set_caiso_high = mo.state(None)
+    def do_caiso_reset(*args,**kwargs):
+        set_caiso_high(f"47.121")
+    do_caiso_reset()
+    caiso_reset_ui = mo.ui.button(label="Reset",on_click=do_caiso_reset)
+    return caiso_reset_ui, get_caiso_high, set_caiso_high
+
+
+@app.cell
+def _(get_caiso_high, mo, set_caiso_high):
+    caiso_high_ui = mo.ui.text(
+        label=f"CAISO peak adjustment (GW)",
+        value=get_caiso_high(),
+        on_change=set_caiso_high,
+        debounce=True,
+    )
+    return (caiso_high_ui,)
+
+
+@app.cell
+def _(
+    caiso_high_ui,
+    caiso_offset_mw,
+    caiso_reset_ui,
+    mo,
+    wecc_high_ui,
+    wecc_offset_mw,
+    wecc_reset_ui,
+):
+    _wecc_offset = "**invalid**" if wecc_offset_mw is None else f"{wecc_offset_mw/1e3:.3f} GW"
+    _caiso_offset = "**invalid**" if caiso_offset_mw is None else f"{caiso_offset_mw/1e3:.3f} GW"
+    mo.vstack([
+        mo.hstack([wecc_high_ui,wecc_reset_ui,mo.md(f"(current WECC load adjustment is {_wecc_offset})")],justify='start'),
+        mo.hstack([caiso_high_ui,caiso_reset_ui,mo.md(f"(current CAISO load adjustment is {_caiso_offset})")],justify='start'),
+    ])
     return
 
 
 @app.cell
-def _(bus_load, date_range, get_high, load_busses, mo):
-    with mo.status.spinner(f"Adjusting peak to {get_high()} GW"):
-        wecc_load = bus_load.loc[:,load_busses].rename_axis("timestamp")
+def _(
+    bus_load,
+    caiso_busses,
+    date_range,
+    get_caiso_high,
+    get_wecc_high,
+    mo,
+    noncaiso_busses,
+    wecc_busses,
+):
+    with mo.status.spinner(f"Adjusting peak to {get_wecc_high()} GW"):
+        wecc_load = bus_load.loc[:, wecc_busses].rename_axis("timestamp")
+
+        _caisoload = wecc_load.loc[date_range, caiso_busses].sum(axis=1)
+        _caisopeak = _caisoload.max()
+        _caisopeaktime = _caisoload[_caisoload == _caisopeak].index.to_pydatetime()[0]
+
+        _weccload = wecc_load.loc[date_range, wecc_busses].sum(axis=1)
+        _weccpeak = _weccload.max()
+        _weccpeaktime = _weccload[_weccload == _weccpeak].index.to_pydatetime()[0]
+
         try:
-            _peak = float(get_high())
-            offset_mw = _peak*1e3 - wecc_load.loc[date_range,load_busses].sum(axis=1).max()
-            _weights = wecc_load.sum(axis=0) / wecc_load.sum(axis=None)
-            wecc_load += offset_mw * _weights
+            _caiso = float(get_caiso_high())
+            caiso_offset_mw = (
+                _caiso * 1e3
+                - wecc_load.loc[date_range, caiso_busses].sum(axis=1).max()
+            )
+            _weights = wecc_load.loc[date_range, caiso_busses].sum(
+                axis=0
+            ) / wecc_load.loc[date_range, caiso_busses].sum(axis=None)
+            wecc_load.loc[:, caiso_busses] += caiso_offset_mw * _weights
+        
         except:
-            if get_high():
-                offset_mw = None
+            _caiso = 0
+            if get_caiso_high():
+                caiso_offset_mw = None
             else:
-                offset_mw = 0
-    return offset_mw, wecc_load
+                caiso_offset_mw = 0
+
+        try:
+            _wecc = float(get_wecc_high())
+            wecc_offset_mw = (
+                _wecc * 1e3
+                - wecc_load.loc[date_range, wecc_busses].sum(axis=1).max()
+            ) + (0 if caiso_offset_mw is None else caiso_offset_mw)
+            _weights = wecc_load.loc[date_range, noncaiso_busses].sum(
+                axis=0
+            ) / wecc_load.loc[date_range, noncaiso_busses].sum(axis=None)
+            wecc_load.loc[:, noncaiso_busses] += wecc_offset_mw * _weights
+
+        except:
+            raise
+            if get_wecc_high():
+                wecc_offset_mw = None
+            else:
+                wecc_offset_mw = 0
+
+    mo.md(f"""
+    | | Peak | Date/Time | Adjusted Peak |
+    | --- | --- | --- | --- |
+    | CAISO | {_caisopeak/1000:.3f} GW | {_weccpeaktime:%m/%d/%y %H:%M %Z} | {(_caisopeak+caiso_offset_mw)/1000:.3f} GW |
+    | WECC | {_weccpeak/1000:.3f} GW | {_caisopeaktime:%m/%d/%y %H:%M %Z} | {(_weccpeak+wecc_offset_mw)/1000:.3f} 
+
+    """)
+    return caiso_offset_mw, wecc_load, wecc_offset_mw
 
 
 @app.cell
