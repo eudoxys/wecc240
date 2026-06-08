@@ -36,7 +36,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(dt, mo):
     date_ui = mo.ui.date_range(
         label="Date range:",
@@ -47,7 +47,7 @@ def _(dt, mo):
     return (date_ui,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(date_ui, pd):
     date_range = pd.date_range(start=date_ui.value[0],end=date_ui.value[1],freq="1h",tz="UTC")[:-1]
     return (date_range,)
@@ -58,7 +58,7 @@ def _(mo):
     mo.md(r"""
     ## County loads data
 
-    The county loads data (`county_mw`) is read from the file `county_mw.csv.gz`.
+    The county loads data (`county_mw`) is read from the file `county_mw.csv.gz`. The raw county load data is calibrated to the reported state energy consumption for each month.  Each month of county load data is rescaled based on the ratio of the county's reported energy use to the energy use in the data.
     """)
     return
 
@@ -78,10 +78,23 @@ def _(mo, pd):
             }.items():
             _nonus_mw.append(pd.read_csv(f"../{_bus}.csv",index_col=[0],parse_dates=[0])["load_MW"].to_frame(_county))
         county_mw = pd.concat(_nonus_mw+[county_mw],axis=1,sort=True)
+
+        # # calibrate county loads to state-level energy consumption
+        # _energy = Energy("CA",None,year=[2018,2022])
+        # _sum = county_mw.resample("MS").sum()
+        # print(_sum[_energy.columns])
+        # _cf = _energy[_energy.columns] / _sum[_energy.columns]
+        # print(_cf)
+        # county_mw[_energy.columns] *= _cf[_energy.columns]
     return (county_mw,)
 
 
 @app.cell
+def _():
+    return
+
+
+@app.cell(hide_code=True)
 def _(county_mw, mo):
     _pagewidth = 5
     get_counties_page, set_counties_page = mo.state(0)
@@ -116,7 +129,7 @@ def _(county_mw, mo):
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(counties_pages, get_counties_page, mo, set_counties_page):
     counties_select = mo.ui.dropdown(
         options=counties_pages,
@@ -280,9 +293,9 @@ def _(counties, county_mw, date_range, load_bus, mo, nearest, pd):
             right_index=True,
         )
         county_map["COUNTY_CF"] = county_map["MWH"] / county_map["COUNTY_MWH"]
-        assert (
-            county_map.groupby("COUNTY_AGGR")["COUNTY_CF"].sum().round(6) == 1
-        ).all(), "county_map checksum failed"
+        mo.stop ((
+            county_map.groupby("COUNTY_AGGR")["COUNTY_CF"].sum().round(6) != 1
+        ).any(), mo.md("**<font color=red>ERROR: County_map checksum failed</font>**"))
 
 
     mo.accordion(
@@ -432,38 +445,13 @@ def _(bus_mw, busses_select, busses_ui, date_range, date_ui, mo):
 
 
 @app.cell
-def _(save_ui):
-    save_ui
-    return
-
-
-@app.cell
 def _(bus_mw, mo):
     def save(*args,**kwargs):
         with mo.status.spinner("Saving `bus_mw` to `bus_mw.csv.gz`"):
             bus_mw.round(3).to_csv("bus_mw.csv.gz",index=True,header=True,compression="gzip")
 
     save_ui = mo.ui.button(label="Save `bus_mw` to `bus_mw.csv.gz`",on_click=save)
-    return (save_ui,)
-
-
-@app.cell
-def _(bus_mw, mo):
-    bus_ui = mo.ui.dropdown(options=bus_mw.columns,value=bus_mw.columns[0])
-    bus_ui
-    return
-
-
-@app.cell
-def _(bus_mw, county_load, county_mw, date_range):
-    _ax = bus_mw.loc[date_range].sum(axis=1).to_frame("bus_mw").plot()
-    county_load.loc[date_range].sum(axis=1).to_frame("county_load").plot(
-        ax=_ax, marker="."
-    )
-    county_mw.loc[date_range].sum(axis=1).to_frame("county_mw").plot(
-        ax=_ax, grid=True, xlabel="Date/Time (UTC)", ylabel="Load (MW)", color="k"
-    )
-    _ax.legend()
+    save_ui
     return
 
 
@@ -474,6 +462,7 @@ def _():
     import datetime as dt
     from fips import Counties
     from geohash import nearest2
+    from loads import Energy
 
     pd.options.display.width = None
     pd.options.display.max_columns = None

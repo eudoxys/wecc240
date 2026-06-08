@@ -279,7 +279,7 @@ def _(
                 axis=0
             ) / wecc_load.loc[date_range, caiso_busses].sum(axis=None)
             wecc_load.loc[:, caiso_busses] += caiso_offset_mw * _weights
-        
+
         except:
             _caiso = 0
             if get_caiso_high():
