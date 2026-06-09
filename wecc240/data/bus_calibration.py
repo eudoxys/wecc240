@@ -306,17 +306,33 @@ def _(
             else:
                 wecc_offset_mw = 0
 
-        wecc_load += bus_dg
+        wecc_load.loc[:,wecc_busses] += bus_dg.loc[:,wecc_busses]
         _wecc_total = wecc_load.sum(axis=1).max()
         _caiso_total = wecc_load[caiso_busses].sum(axis=1).max()
+        wecc_net = wecc_load - bus_dg
+        caiso_net = wecc_net[caiso_busses]
+        _wecc_net = wecc_net.loc[date_range].sum(axis=1).max()
+        _caiso_net = caiso_net.loc[date_range].sum(axis=1).max()
 
     mo.md(f"""
     | System | Original Peak (GW) | Date/Time | Total Peak (GW) | Net peak (GW) | 
     | --- | --- | --- | --- | --- |
-    | WECC | {_weccpeak/1000:.3f} | {_caisopeaktime:%m/%d/%y %H:%M %Z} | {_wecc_total/1000:.3f} |{(_weccpeak+wecc_offset_mw)/1000:.3f} |
-    | CAISO | {_caisopeak/1000:.3f} | {_weccpeaktime:%m/%d/%y %H:%M %Z} | {_caiso_total/1000:.3f} |{(_caisopeak+caiso_offset_mw)/1000:.3f} |
+    | WECC | {_weccpeak/1000:.3f} | {_caisopeaktime:%m/%d/%y %H:%M %Z} | {_wecc_total/1000:.3f} |{(_wecc_net)/1000:.3f} |
+    | CAISO | {_caisopeak/1000:.3f} | {_weccpeaktime:%m/%d/%y %H:%M %Z} | {_caiso_total/1000:.3f} |{(_caiso_net)/1000:.3f} |
     """)
-    return caiso_offset_mw, wecc_load, wecc_offset_mw
+    return caiso_offset_mw, wecc_load, wecc_net, wecc_offset_mw
+
+
+@app.cell
+def _(date_range, wecc_busses, wecc_load):
+    (wecc_load.loc[date_range,wecc_busses].sum(axis=1)/1000).round(1).max()
+    return
+
+
+@app.cell
+def _(bus_dg, date_range, wecc_busses):
+    (bus_dg.loc[date_range,wecc_busses].sum(axis=1)/1000).round(1).max()
+    return
 
 
 @app.cell
@@ -337,10 +353,37 @@ def _(mo, wecc_load):
     wecc_load
     def save(*args,**kwargs):
         with mo.status.spinner(f"Saving `{_file}`"):
-            wecc_load.round(3).to_csv(_file,index=True,header=True,compression="gzip" if _file.endswith(".gz") else None)
+            wecc_load.iloc[8:-752].round(3).to_csv(_file,index=True,header=True,compression="gzip" if _file.endswith(".gz") else None)
 
     save_ui = mo.ui.button(label=f"Save `wecc_load` to `{_file}`",on_click=save)
     save_ui
+    return
+
+
+@app.cell
+def _(bus_dg, mo, pd, wecc_load, wecc_net):
+    _net = wecc_net.iloc[8:-752].sum(axis=1) / 1000
+    _load = wecc_load.iloc[8:-752].sum(axis=1) / 1000
+    _dg = bus_dg.iloc[8:-752].sum(axis=1) / 1000
+    _plt = _net.plot()
+    _load.plot(
+        grid=True, figsize=(10, 7), xlabel="Date/Time (UTC)", ylabel="Load (GW)"
+    )
+    _plt.legend(["Net", "Load"])
+    mo.ui.tabs(
+        {
+            "Data": mo.ui.table(
+                pd.DataFrame({
+                    "load": _load.round(3),
+                    "dg": _dg.round(3),
+                    "net": _net.round(3),
+                    }),
+                selection=None,
+                page_size=24,
+            ),
+            "Plot": mo.mpl.interactive(_plt),
+        }
+    )
     return
 
 
