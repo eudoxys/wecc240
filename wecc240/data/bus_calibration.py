@@ -14,17 +14,42 @@ def _(mo):
 
 @app.cell
 def _(mo):
-    mo.mermaid("""
+    mo.accordion({"Figure 1: Bus calibration data flow":mo.mermaid("""
     flowchart LR
         bus_mw.csv --> sum1
         bus_dg.csv -->|-| sum1
         sum1((+)) --> bus_net --> mul1
         bus_net --Σ
             hour--> bus_mwh
+
         state_mwh.csv -----> mul1
-        bus_mwh --1/Σ
-            state--> mul1
-        mul1((x)) --> bus_load.csv
+        subgraph State energy scaling
+            bus_mwh --1/Σ
+                state--> mul1
+            mul1((x)) --> bus_load
+        end
+
+        weak_peak --> sum2
+        subgraph WECC peak matching
+            bus_load -- - non-caiso max -->sum2
+            bus_load -- non-caiso --> sum2
+        end
+        sum2((+)) --> wecc_load
+
+        subgraph CAISO peak matching
+            bus_load -- - caiso max -->sum3
+            bus_load -- caiso --> sum3
+        end
+        sum3((+)) --> wecc_load
+        caiso_peak --> sum3
+    """)})
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    The WECC gis data (`wecc_gis`) is use to identify which busses are located in CAISO, i.e., `wecc_gis["BA"]="CA"`.
     """)
     return
 
@@ -49,6 +74,14 @@ def _(Counties, mo, pd):
     return caiso_busses, noncaiso_busses, wecc_busses, wecc_gis
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    The date range is used to specify what range of data should be shown in table and plots. You can also specify whether only the date range is saved to the output file.
+    """)
+    return
+
+
 @app.cell
 def _(dt, mo):
     date_ui = mo.ui.date_range(
@@ -57,12 +90,80 @@ def _(dt, mo):
         stop="2022-12-31",
         value=(dt.date(2020, 8, 14), dt.date(2020, 8, 21)),
     )
-    return (date_ui,)
+    constrain_ui = mo.ui.checkbox(label="Save only this date range")
+    return constrain_ui, date_ui
 
 
 @app.cell
-def _(date_ui):
-    date_ui
+def _(bus_dg, mo):
+    _pagewidth = 7
+    get_busses_page, set_busses_page = mo.state(0)
+    busses_pages = [
+        f"{bus_dg.columns[x]}-{bus_dg.columns[min(x+_pagewidth,len(bus_dg.columns))-1]}"
+        for x in range(0, len(bus_dg.columns), _pagewidth)
+    ]
+    busses_first = mo.ui.button(
+        label="|&lt;",
+        on_click=lambda x: set_busses_page(0),
+    )
+    busses_previous = mo.ui.button(
+        label="&lt;",
+        on_click=lambda x: set_busses_page(max(0, get_busses_page() - 1)),
+    )
+    busses_next = mo.ui.button(
+        label="&gt;",
+        on_click=lambda x: set_busses_page(
+            min(get_busses_page() + 1, len(busses_pages) - 1)
+        ),
+    )
+    busses_last = mo.ui.button(
+        label="&gt;|",
+        on_click=lambda x: set_busses_page(len(busses_pages) - 1),
+    )
+    return (
+        busses_first,
+        busses_last,
+        busses_next,
+        busses_pages,
+        busses_previous,
+        get_busses_page,
+    )
+
+
+@app.cell
+def _(busses_pages, get_busses_page, mo):
+    busses_select = mo.ui.dropdown(
+        options=busses_pages, value=busses_pages[get_busses_page()]
+    )
+    return (busses_select,)
+
+
+@app.cell
+def _(
+    busses_first,
+    busses_last,
+    busses_next,
+    busses_previous,
+    busses_select,
+    mo,
+):
+    bus_ui = mo.hstack(
+        [
+            mo.md("Bus:"),
+            busses_first,
+            busses_previous,
+            busses_select,
+            busses_next,
+            busses_last,
+        ],
+        justify="start",
+    )
+    return (bus_ui,)
+
+
+@app.cell
+def _(bus_ui, constrain_ui, date_ui, mo):
+    mo.hstack([date_ui,constrain_ui,bus_ui],justify='start')
     return
 
 
@@ -73,18 +174,38 @@ def _(date_ui, pd):
 
 
 @app.cell
-def _(date_range, mo, pd):
-    with mo.status.spinner("Reading `bus_mw.csv.gz`"):
-        bus_mw = pd.read_csv("bus_mw.csv.gz", index_col=[0], parse_dates=[0])
+def _(busses_select, np):
+    _busses = busses_select.value.split("-")
+    bus_range = np.s_[_busses[0]:_busses[1]]
+    bus_range
+    return (bus_range,)
 
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    The bus load (`bus_mw`) and bus distribution generation (`bus_dg`) are loaded from the files `bus_mw.csv.gz` and `bus_dg.csv.gz`, respectively.
+    """)
+    return
+
+
+@app.cell
+def _(bus_dg, mo, pd):
+    with mo.status.spinner("Reading `bus_mw.csv.gz`"):
+        bus_mw = pd.read_csv("bus_mw.csv.gz", index_col=[0], parse_dates=[0])[bus_dg.columns]
+    return (bus_mw,)
+
+
+@app.cell
+def _(bus_mw, bus_range, date_range, mo):
     mo.accordion(
         {
             "`bus_mw`": mo.ui.table(
-                bus_mw.loc[date_range], selection=None, page_size=24
+                bus_mw.loc[date_range,bus_range], selection=None, page_size=24
             ),
         }
     )
-    return (bus_mw,)
+    return
 
 
 @app.cell
@@ -100,6 +221,14 @@ def _(date_range, mo, pd):
         }
     )
     return (bus_dg,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    The monthly state energy consumption (`state_mwh`) as reported by EIA in Form 861m is loaded from `state_mwh.csv`.
+    """)
+    return
 
 
 @app.cell
@@ -131,6 +260,14 @@ def _(bus_mw, date_range, mo, state_mwh):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    The bus-level net load (`bus_net`) and net monthly energy consumption (`bus_mwh`) are calculated from the bus load (`bus_mw`) and bus DG (`bus_dg`).
+    """)
+    return
+
+
 @app.cell
 def _(bus_dg, bus_mw, mo, pd, wecc_gis):
     with mo.status.spinner("Calibrating bus loads"):
@@ -146,32 +283,45 @@ def _(bus_dg, bus_mw, mo, pd, wecc_gis):
 
 
 @app.cell
-def _(bus_mw, bus_mwh, bus_net, date_range, mo):
+def _(bus_mw, bus_mwh, bus_net, bus_range, date_range, mo):
     mo.accordion({
-        "`bus_net`": bus_net.loc[date_range],
-        "`bus_mwh`": bus_mwh.loc[bus_mw.loc[date_range].resample("MS").min().index],
+        "`bus_net`": bus_net.loc[date_range,bus_range],
+        "`bus_mwh`": bus_mwh.loc[bus_mw.loc[date_range,bus_range].resample("MS").min().index],
     })
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    The calibrated bus load (`bus_load`) is calculated from the bus energy consumption (`bus_mwh`) and the reported state energy consumption (`state_mwh`) using the calibration factors (`calibration`).
+    """)
+    return
+
+
 @app.cell
-def _(bus_dg, bus_net, state_mwh, wecc_gis):
-    bus_load = bus_net.copy()
-    _calibration = state_mwh.reset_index().set_index(["state","timestamp"])
-    for _state in sorted(wecc_gis["STATE"].unique()):
-        _scale = _calibration.loc[_state,"calibration"].resample("1h").ffill()
-        for _bus in wecc_gis[wecc_gis["STATE"]==_state].index:
-            bus_load[_bus] *= _scale
-    bus_load += bus_dg
+def _(bus_dg, bus_net, mo, pd, state_mwh, wecc_gis):
+    with mo.status.spinner("Calibrating bus load to state energy consumption"):
+        bus_load = bus_net.copy()
+        _calibration = state_mwh.reset_index().set_index(["state","timestamp"])
+        _all = []
+        for _state in sorted(wecc_gis["STATE"].unique()):
+            _scale = _calibration.loc[_state,"calibration"].resample("1h").ffill()
+            for _bus in [x for x in wecc_gis[wecc_gis["STATE"]==_state].index if x in bus_load.columns]:
+                bus_load[_bus] *= _scale
+            _all.append(_scale.to_frame(_state))
+        bus_load += bus_dg
+
+    mo.accordion({"calibration":mo.ui.table(pd.concat(_all,axis=1).resample("MS").max().round(4),selection=None)})
     return (bus_load,)
 
 
 @app.cell
-def _(bus_load, date_range, mo, wecc_busses):
+def _(bus_load, bus_range, date_range, mo, wecc_busses):
     _df = bus_load.loc[date_range,wecc_busses]
     mo.accordion({
         "`bus_load`": mo.ui.tabs({
-            "Data": _df.round(1),
+            "Data": _df.loc[:,bus_range].round(1),
             "Plot": _df.sum(axis=1).plot(grid=True)
         })
     })
@@ -226,6 +376,14 @@ def _(get_caiso_high, mo, set_caiso_high):
         debounce=True,
     )
     return (caiso_high_ui,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    The WECC and CAISO loads are adjusted to match the specified peaks.
+    """)
+    return
 
 
 @app.cell
@@ -336,48 +494,45 @@ def _(bus_dg, date_range, wecc_busses):
 
 
 @app.cell
-def _(date_range, mo, wecc_load):
+def _(bus_range, date_range, mo, wecc_load):
     _df = (wecc_load.loc[date_range]/1000)
     mo.accordion({
         "`wecc_load`": mo.ui.tabs({
-            "Data": (_df*1000).round(1),
+            "Data": (_df.loc[:,bus_range]*1000).round(1),
             "Plot": mo.mpl.interactive(_df.sum(axis=1).plot(grid=True,xlabel="Date/Time (UTC)",ylabel="Load (GW)")),
         })
     })
     return
 
 
-@app.cell
-def _(mo, wecc_load):
-    _file = "wecc240_load.csv.gz"
-    wecc_load
-    def save(*args,**kwargs):
-        with mo.status.spinner(f"Saving `{_file}`"):
-            wecc_load.iloc[8:-752].round(3).to_csv(_file,index=True,header=True,compression="gzip" if _file.endswith(".gz") else None)
-
-    save_ui = mo.ui.button(label=f"Save `wecc_load` to `{_file}`",on_click=save)
-    save_ui
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    The following is a summary of the results.
+    """)
     return
 
 
 @app.cell
-def _(bus_dg, mo, pd, wecc_load, wecc_net):
-    _net = wecc_net.iloc[8:-752].sum(axis=1) / 1000
-    _load = wecc_load.iloc[8:-752].sum(axis=1) / 1000
-    _dg = bus_dg.iloc[8:-752].sum(axis=1) / 1000
+def _(bus_dg, mo, pd, save_range, wecc_load, wecc_net):
+    _net = wecc_net.iloc[save_range].sum(axis=1) / 1000
+    _load = wecc_load.iloc[save_range].sum(axis=1) / 1000
+    _dg = bus_dg.iloc[save_range].sum(axis=1) / 1000
     _plt = _net.plot()
-    _load.plot(
+    _load.plot(linestyle=":",
         grid=True, figsize=(10, 7), xlabel="Date/Time (UTC)", ylabel="Load (GW)"
     )
     _plt.legend(["Net", "Load"])
     mo.ui.tabs(
         {
             "Data": mo.ui.table(
-                pd.DataFrame({
-                    "load": _load.round(3),
-                    "dg": _dg.round(3),
-                    "net": _net.round(3),
-                    }),
+                pd.DataFrame(
+                    {
+                        "load": _load.round(3),
+                        "dg": _dg.round(3),
+                        "net": _net.round(3),
+                    }
+                ),
                 selection=None,
                 page_size=24,
             ),
@@ -388,13 +543,29 @@ def _(bus_dg, mo, pd, wecc_load, wecc_net):
 
 
 @app.cell
+def _(constrain_ui, date_range, mo, np, wecc_load):
+    _file = "wecc240_load.csv.gz"
+    wecc_load
+    _range = [wecc_load.index.tolist().index(x) for x in [date_range.min(),date_range.max()]] if constrain_ui.value else [8,-752]
+    save_range = np.s_[_range[0]:_range[1]]
+    def save(*args,**kwargs):
+        with mo.status.spinner(f"Saving `{_file}`"):
+            wecc_load.iloc[save_range].round(3).to_csv(_file,index=True,header=True,compression="gzip" if _file.endswith(".gz") else None)
+
+    save_ui = mo.ui.button(label=f"Save `wecc_load` to `{_file}`",on_click=save)
+    save_ui
+    return (save_range,)
+
+
+@app.cell
 def _():
     import marimo as mo
     import datetime as dt
     import pandas as pd
+    import numpy as np
     from fips import Counties
 
-    return Counties, dt, mo, pd
+    return Counties, dt, mo, np, pd
 
 
 if __name__ == "__main__":
