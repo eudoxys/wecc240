@@ -31,8 +31,8 @@ from pypower_sim import PPModel, PPSolver
 def wecc240_2018():
     """WECC 240 model by Price et al."""
 
-    from wecc240.wecc240_2011 import wecc240_2011
-    from wecc240.scheduling import Generator
+    from wecc240_2011 import wecc240_2011
+    from scheduling import Generator
     data = wecc240_2011()
     gens = Generator()
     data["gen"] = gens.to_ppgen()

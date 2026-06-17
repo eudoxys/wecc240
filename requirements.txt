@@ -6,3 +6,4 @@ eia @ git+https://github.com/eudoxys/eia
 fips @ git+https://github.com/eudoxys/fips
 loads @ git+https://github.com/eudoxys/loads
 pypower_sim @ git+https://github.com/eudoxys/pypower_sim
+utilities @ git+https://github.com/eudoxys/utilities
