@@ -32,7 +32,7 @@ from pypower_sim.ppmodel import idx_branch as branch
 # pylint: disable=too-many-lines,invalid-name,line-too-long
 
 def wecc240_2018(adjustments:dict[tuple,float]|None=None) -> dict:
-    """WECC 240 model by Price et al.
+    """WECC 240 model by Yuan et al.
 
     Arguments
     ---------
@@ -79,10 +79,10 @@ def wecc240_2018(adjustments:dict[tuple,float]|None=None) -> dict:
     return data
 
 class WECC240_2018(PPModel):
-    """WECC240 version 1 (2011) model for `pypower_sim`"""
+    """WECC240 version 2 (2018) model for `pypower_sim`"""
 
     def __init__(self,adjustments=None):
-        """Construct WECC240 model version 1 (2011)"""
+        """Construct WECC240 model version 2 (2018)"""
 
         super().__init__(name="wecc240_2018",case=wecc240_2018(adjustments))
 
