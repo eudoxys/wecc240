@@ -1,4 +1,4 @@
-# pypower case 'wecc240_2018' saved on 2026-06-23 10:47:10.015698
+# pypower case 'wecc240_2018' saved on 2026-06-23 10:49:27.519400
 from numpy import array
 def case240_2018():
     return {

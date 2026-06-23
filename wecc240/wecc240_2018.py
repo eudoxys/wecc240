@@ -92,14 +92,13 @@ if __name__ == "__main__":
     
     solver = PPSolver(model)
 
-    # model.options["VERBOSE"] = 3
     model.options["OUT_ALL"] = 1
 
     # ok,solution = solver.solve_oce(with_result=True)
     # assert ok, "OCE failed"
     # print("","Warnings","--------",*solution["warnings"],sep="\n")
     # print("","Updates","-------",*solution["updates"],sep="\n")
-    
+
 
     assert solver.solve_opf(use_acopf=True), "AC OPF failed"
     assert solver.solve_pf(), "PF failed"
