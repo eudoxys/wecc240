@@ -19,16 +19,19 @@ market design prototype." In 2011 IEEE Power and Energy Society General
 Meeting, pp. 1-6. IEEE, 2011.
 """
 
+import numpy as np
 from numpy import array
 
 from pypower_sim import PPModel, PPSolver
+from pypower_sim.ppmodel import idx_bus as bus
+from pypower_sim.ppmodel import idx_branch as branch
 
 # pylint: disable=too-many-lines,invalid-name,line-too-long
 
 def wecc240_2011():
     """WECC 240 model by Price et al."""
 
-    return {
+    data = {
       'version': 2,
       'baseMVA': 100.0,
       'bus': array([
@@ -1141,7 +1144,15 @@ def wecc240_2011():
          [           2,           0,           0,           3,           0,           0,           0],
          [           2,           0,           0,           3,           0,           0,           0],
         ]),
-}
+    }
+
+    # convert branch susceptances to puZ
+    busmap = {int(y):x for x,y in enumerate(data["bus"][:,bus.BUS_I])}
+    puZ = data["baseMVA"] / data["bus"][:,bus.BASE_KV]**2
+    fbus = data["branch"][:,branch.F_BUS]
+    data["branch"][:,branch.BR_B] *= np.array(puZ[[np.s_[busmap[x]] for x in fbus]])
+
+    return data
 
 class WECC240_2011(PPModel):
     """WECC240 version 1 (2011) model for `pypower_sim`"""
@@ -1156,13 +1167,8 @@ if __name__ == "__main__":
     model = WECC240_2011()
     
     solver = PPSolver(model)
-    assert solver.solve_osp(), "OSP failed"
     assert solver.solve_opf(), "OPF failed"
     assert solver.solve_pf(), "PF failed"
 
-    import pandas as pd
-    pd.options.display.max_columns = None
-    pd.options.display.width = None
-    pd.options.display.max_rows = None
-    
-    model.print()
+    with open("case240_2011.py","w") as fh:
+        model.save_case(fh,name="case240_2011")

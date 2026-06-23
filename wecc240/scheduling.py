@@ -38,7 +38,7 @@ class Generator(pd.DataFrame):
 
     def to_ppgen(self,
         basemva:float=100.0,
-        q_factor:float=1.0,
+        q_factor:float=0.2,
         ) -> np.array:
         """Convert data frame to pypower gen array
 
@@ -57,13 +57,13 @@ class Generator(pd.DataFrame):
             self.busname, # GEN_BUS
             np.zeros(len(self)), # PG
             np.zeros(len(self)), # QG
-            self.Pmax*q_factor, # QMAX
-            -self.Pmax*q_factor, # QMIN
+            self.Pmax*q_factor/basemva, # QMAX
+            -self.Pmax*q_factor/basemva, # QMIN
             np.ones(len(self)), # VG
             np.full(len(self),basemva), # MBASE
             self.InitStatus, # GEN_STATUS
-            self.Pmax, # PMAX
-            self.Pmin, # PMIN
+            self.Pmax/basemva, # PMAX
+            self.Pmin/basemva, # PMIN
             np.zeros(len(self)), # PC1
             np.zeros(len(self)), # PC2
             np.zeros(len(self)), # QC1MIN
