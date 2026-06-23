@@ -62,8 +62,10 @@ def wecc240_2018(adjustments:dict[tuple,float]|None=None) -> dict:
     data["gencost]"] = gens.to_ppgencost()
 
     # apply specified adjustments
-    for key,scalar in adjustments.items():
-        data[key[0]][:,key[1]] *= scalar
+    if not adjustments is None:
+        assert isinstance(adjustment,dict), f"{adjustments=} must be a dict type"
+        for key,scalar in adjustments.items():
+            data[key[0]][:,key[1]] *= scalar
     
     # fix bus types according to generator schedule
     busmap = {int(y):x for x,y in enumerate(data["bus"][:,bus.BUS_I])}
@@ -86,19 +88,11 @@ class WECC240_2018(PPModel):
 
 if __name__ == "__main__":
 
-    model = WECC240_2018(adjustments={
-        # ("branch",branch.BR_B): 1/25, # reduce susceptance to make AC OPF solvable
-        })
+    model = WECC240_2018()
     
     solver = PPSolver(model)
 
     model.options["OUT_ALL"] = 1
-
-    # ok,solution = solver.solve_oce(with_result=True)
-    # assert ok, "OCE failed"
-    # print("","Warnings","--------",*solution["warnings"],sep="\n")
-    # print("","Updates","-------",*solution["updates"],sep="\n")
-
 
     assert solver.solve_opf(use_acopf=True), "AC OPF failed"
     assert solver.solve_pf(), "PF failed"
