@@ -21,17 +21,21 @@ Transmission and Distribution Conference and Exposition (T&D), Chicago, IL,
 USA, 2020, pp. 1-5, doi: 10.1109/TD39804.2020.9299666.)
 """
 
+import warnings
+
 import numpy as np
+import pandas as pd
 
 from pypower_sim import PPModel, PPSolver, OceOptions
 from pypower_sim.ppmodel import idx_gen as gen
 from pypower_sim.ppmodel import idx_bus as bus
 from pypower_sim.ppmodel import idx_branch as branch
 
+from scheduling import Generator, Line, Storage
 
 # pylint: disable=too-many-lines,invalid-name,line-too-long
 
-def wecc240_2018(adjustments:dict[tuple,float]|None=None) -> dict:
+def wecc240_2018(adjustments:dict[tuple[str,str],float]|None=None) -> dict:
     """WECC 240 model by Yuan et al.
 
     Arguments
@@ -54,12 +58,12 @@ def wecc240_2018(adjustments:dict[tuple,float]|None=None) -> dict:
     data = wecc240_2011()
 
     # read generator schedule update
-    from scheduling import Generator
     gens = Generator()
 
     # apply generator schedule to base model
+    # print(gens.sort_values("genname"))
     data["gen"] = gens.to_ppgen()
-    data["gencost]"] = gens.to_ppgencost()
+    data["gencost"] = gens.to_ppgencost()
 
     # apply specified adjustments
     if not adjustments is None:
@@ -76,6 +80,26 @@ def wecc240_2018(adjustments:dict[tuple,float]|None=None) -> dict:
     data["bus"][genbus,bus.BUS_TYPE] = 2
     data["bus"][refbus,bus.BUS_TYPE] = 3
 
+    # read lines
+    lines = Line()
+    lines.columns = ["F_BUS","T_BUS","BR_X","RATE_A","BR_STATUS"]
+    lines["RATE_B"] = 0
+    lines["RATE_C"] = 0
+    lines.set_index(["F_BUS","T_BUS"],inplace=True)
+
+    # update branches
+    branch = pd.DataFrame(data["branch"])
+    branch.columns = ["F_BUS","T_BUS","BR_R","BR_X","BR_B","RATE_A","RATE_B","RATE_C","TAP","SHIFT","BR_STATUS","ANGMIN","ANGMAX"]
+    branch.set_index(["F_BUS","T_BUS"],inplace=True)
+    branch.sort_index(inplace=True)
+    for ndx,line in lines.iterrows():
+        for column in lines.columns:
+            branch.loc[ndx,column] = line[column]
+    data["branch"] = branch.reset_index().values
+
+    # read storage
+    warnings.warn("Energy storage not implemented")
+
     return data
 
 class WECC240_2018(PPModel):
@@ -84,15 +108,30 @@ class WECC240_2018(PPModel):
     def __init__(self,adjustments=None):
         """Construct WECC240 model version 2 (2018)"""
 
-        super().__init__(name="wecc240_2018",case=wecc240_2018(adjustments))
+        super().__init__(name="wecc240_2018",case=wecc240_2018())
 
 if __name__ == "__main__":
 
+    pd.options.display.max_columns = None
+    pd.options.display.width = None
+    pd.options.display.max_rows = None
+
     model = WECC240_2018()
     
+    with open("case240_2018.py","w") as fh:
+        model.save_case(fh,name="case240_2018")
+
     solver = PPSolver(model)
 
+    model.options["VERBOSE"] = 3
     model.options["OUT_ALL"] = 1
+
+    options = OceOptions(setpoints=True)
+    ok,result = solver.solve_oce(with_result=True,options=options)
+    print(result["problem"])
+    print(f'{result["parameters"]["vg (pu.kV)"]=}')
+    assert ok, f"OCE failed ({result['status']})"
+    print("WARNINGS",*result["warnings"],sep="\n  - ")
 
     assert solver.solve_opf(use_acopf=True), "AC OPF failed"
     assert solver.solve_pf(), "PF failed"

@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.8"
+__generated_with = "0.19.6"
 app = marimo.App(width="medium")
 
 
@@ -119,7 +119,7 @@ def _(bus_ui, date_ui, mo):
 def _(mo, pd):
     with mo.status.spinner("Loading wecc240 load and DG data"):
         bus_load = (
-            pd.read_csv("wecc240_load.csv.gz", index_col=[0], parse_dates=[0]) / 1000
+            pd.read_csv("wecc240_bus_PD.csv.gz", index_col=[0], parse_dates=[0]) / 1000
         )
         bus_dg = (
             pd.read_csv("wecc240_dg.csv.gz", index_col=[0], parse_dates=[0]) / 1000
@@ -131,6 +131,7 @@ def _(mo, pd):
 @app.cell
 def _(bus_dg, bus_load, bus_net, busses_select, date_range, mo):
     _plt = bus_load.loc[date_range].sum(axis=1).plot()
+    _plt.legend(["Total load", "Net load"])
     bus_net.loc[date_range].sum(axis=1).plot(
         ax=_plt,
         grid=True,
@@ -141,7 +142,7 @@ def _(bus_dg, bus_load, bus_net, busses_select, date_range, mo):
     _f,_t = busses_select.value.split("-")
     mo.ui.tabs(
         {
-            "Plot": mo.mpl.interactive(_plt.legend(["Total load", "Net load"])),
+            "Plot": mo.mpl.interactive(_plt),
             "Load (GW)": mo.ui.table(bus_load.loc[date_range,_f:_t].round(3), selection=None, page_size=24),
             "DG (GW)": mo.ui.table(bus_dg.loc[date_range,_f:_t].round(3), selection=None, page_size=24),
             "Net (GW)": mo.ui.table(
@@ -160,7 +161,6 @@ def _():
     import marimo as mo
     import datetime as dt
     import pandas as pd
-
     return dt, mo, pd
 
 

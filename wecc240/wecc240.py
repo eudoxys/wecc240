@@ -12,6 +12,7 @@ from pypower_sim.ppmodel import idx_bus as bus
 from utilities import CommandLine
 
 E_OK = 0 # no error return code
+E_FAILED = 1 # simulation error occurred
 
 refresh = False # force refresh of intermediate files
 
@@ -52,7 +53,7 @@ def main(argv=sys.argv):
                 },
                 index=P.index).ffill().bfill())
         Q = pd.concat(Q,axis=1)
-        Q.to_csv("data/wecc240_loadQ.csv.gz",index=True,compression="gzip")
+        Q.to_csv("data/wecc240_bus_QD.csv.gz",index=True,compression="gzip")
         print("ok",flush=True)
 
     datamgr = ps.PPData(model)
@@ -74,41 +75,57 @@ def main(argv=sys.argv):
         name="branch",
         column="PF",
         file="data/wecc240_branch_PF.csv",
-        scale=model.case["baseMVA"]
         )
     datamgr.set_output(
         name="branch",
         column="QF",
         file="data/wecc240_branch_QF.csv",
-        scale=model.case["baseMVA"]
         )
     datamgr.set_output(
         name="branch",
         column="PT",
         file="data/wecc240_branch_PT.csv",
-        scale=model.case["baseMVA"]
         )
     datamgr.set_output(
         name="branch",
         column="QT",
         file="data/wecc240_branch_QT.csv",
-        scale=model.case["baseMVA"]
         )
+    # datamgr.set_output(
+    #     name="dcline",
+    #     column="PF",
+    #     file="data/wecc240_dcline_PF.csv",
+    #     )
+    # datamgr.set_output(
+    #     name="dcline",
+    #     column="QF",
+    #     file="data/wecc240_dcline_QF.csv",
+    #     )
+    # datamgr.set_output(
+    #     name="dcline",
+    #     column="PT",
+    #     file="data/wecc240_dcline_PT.csv",
+    #     )
+    # datamgr.set_output(
+    #     name="dcline",
+    #     column="QT",
+    #     file="data/wecc240_dcline_QT.csv",
+    #     )
 
     solver = ps.PPSolver(model)
     oce = ps.OceOptions()
     errors = solver.run_timeseries(
         start="2020-08-01 07:00:00+0000",
-        end="2020-08-08 06:00:00+0000",
+        end="2020-08-31 06:00:00+0000",
         freq="1h",
         progress=lambda *x,**y:print(f"Processing {y['event']} {y['timestamp']} ({len(y['errors'])} errors so far)",flush=True),
-        use_acopf=None,
+        use_acopf=False,
         stop_on_fail=True,
         violations=True,
         )
     print(f"Done with {'no' if errors is None else len(errors)} errors")
     
-    return E_OK
+    return E_OK if not errors else E_FAILED
 
 
 if __name__ == '__main__':

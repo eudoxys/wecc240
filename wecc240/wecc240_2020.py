@@ -22,6 +22,7 @@ Transmission and Distribution Conference and Exposition (T&D), Chicago, IL,
 USA, 2020, pp. 1-5, doi: 10.1109/TD39804.2020.9299666.)
 """
 
+import os
 import warnings
 
 import numpy as np
@@ -54,13 +55,15 @@ def wecc240_2020(adjustments:dict[tuple,float]|None=None) -> dict:
     """
 
     # read base wecc model
-    from wecc240_2018 import wecc240_2018
-    data = wecc240_2018()
+    from wecc240_2011 import wecc240_2011
+    data = wecc240_2011()
 
     # read net load and set model to peak hour
     busmap = {str(int(y)):x for x,y in enumerate(data["bus"][:,bus.BUS_I])}
-    P = pd.read_csv("data/wecc240_load.csv.gz",index_col=[0],parse_dates=[0]) / data["baseMVA"]
+    P = pd.read_csv(f"{os.path.dirname(__file__)}/data/wecc240_bus_PD.csv.gz",index_col=[0],parse_dates=[0])
     total = P.sum(axis=1)
+    print(total.loc[pd.date_range(start="2020-08-18 16:00:00-0700",end="2020-08-18 16:00:00-0700",freq="1h")]*100)
+    print(P[total==total.max()].sum(axis=1)*100)
     peak = P[total==total.max()].index
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -83,21 +86,24 @@ class WECC240_2020(PPModel):
     def __init__(self,adjustments=None):
         """Construct WECC240 model version 3 (2020)"""
 
-        super().__init__(name="wecc240_2018",case=wecc240_2020(adjustments))
+        super().__init__(name="wecc240_2020",case=wecc240_2020(adjustments))
 
 if __name__ == "__main__":
 
     model = WECC240_2020()
 
+    with open("case240_2020.py","w") as fh:
+        model.save_case(fh,name="case240_2020")
+
     data = PPData(model)
     
     solver = PPSolver(model)
 
-    model.options["OUT_ALL"] = 1
+    # model.options["OUT_ALL"] = 1
 
-    # ok,solution = solver.solve_oce(with_result=True)
-    # assert ok, "OCE failed"
-    # print("","Warnings","--------",*solution["warnings"],sep="\n")
+    ok,solution = solver.solve_oce(with_result=True)
+    assert ok, "OCE failed"
+    print("","Warnings","--------",*solution["warnings"],sep="\n",flush=True)
     # print("","Updates","-------",*solution["updates"],sep="\n")
 
 
