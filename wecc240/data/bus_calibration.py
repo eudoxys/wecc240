@@ -177,7 +177,6 @@ def _(date_ui, pd):
 def _(busses_select, np):
     _busses = busses_select.value.split("-")
     bus_range = np.s_[_busses[0]:_busses[1]]
-    bus_range
     return (bus_range,)
 
 
@@ -479,18 +478,6 @@ def _(
     | CAISO | {_caisopeak/1000:.3f} | {_weccpeaktime:%m/%d/%y %H:%M %Z} | {_caiso_total/1000:.3f} |{(_caiso_net)/1000:.3f} |
     """)
     return caiso_offset_mw, wecc_load, wecc_net, wecc_offset_mw
-
-
-@app.cell
-def _(date_range, wecc_busses, wecc_load):
-    (wecc_load.loc[date_range,wecc_busses].sum(axis=1)/1000).round(1).max()
-    return
-
-
-@app.cell
-def _(bus_dg, date_range, wecc_busses):
-    (bus_dg.loc[date_range,wecc_busses].sum(axis=1)/1000).round(1).max()
-    return
 
 
 @app.cell

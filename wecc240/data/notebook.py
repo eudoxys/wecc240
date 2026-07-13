@@ -1,12 +1,14 @@
 import marimo
 
-__generated_with = "0.17.0"
+__generated_with = "0.23.13"
 app = marimo.App(width="medium")
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""This folder describes the notebooks used to prepare the model data used in simulations of the WECC 240 system. The data is shown in Figure 1.""")
+    mo.md(r"""
+    This folder describes the notebooks used to prepare the model data used in simulations of the WECC 240 system. The data is shown in Figure 1.
+    """)
     return
 
 
@@ -159,6 +161,7 @@ def _():
     import marimo as mo
     import datetime as dt
     import pandas as pd
+
     return dt, mo, pd
 
 
