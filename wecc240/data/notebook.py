@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.13"
+__generated_with = "0.23.10"
 app = marimo.App(width="medium")
 
 
@@ -14,7 +14,7 @@ def _(mo):
 
 @app.cell
 def _(mo):
-    with open("README.md","r") as fh:
+    with open("data/README.md","r") as fh:
         _result = "\n".join(fh.read().split("```")[1].split("\n")[1:])
         print(_result)
     mo.mermaid(f"""
@@ -119,10 +119,10 @@ def _(bus_ui, date_ui, mo):
 def _(mo, pd):
     with mo.status.spinner("Loading wecc240 load and DG data"):
         bus_load = (
-            pd.read_csv("wecc240_bus_PD.csv.gz", index_col=[0], parse_dates=[0]) / 1000
+            pd.read_csv("data/wecc240_bus_PD.csv.gz", index_col=[0], parse_dates=[0]) / 1000
         )
         bus_dg = (
-            pd.read_csv("wecc240_dg.csv.gz", index_col=[0], parse_dates=[0]) / 1000
+            pd.read_csv("data/wecc240_dg.csv.gz", index_col=[0], parse_dates=[0]) / 1000
         )
         bus_net = bus_load - bus_dg
     return bus_dg, bus_load, bus_net
