@@ -1,4 +1,4 @@
-## Load calibration procedure
+## WECC 240 model data flow
 ```mermaid
 flowchart LR
     
@@ -27,8 +27,12 @@ flowchart LR
     county_total -->|groupby.geohash.sum| node_total
 
     node_total -->|1/| mul1
-    mul1((x)) --> county_node_cf
+    mul1 --> county_node_cf
     county_total --> mul1
+
+    node_dg --> mul2
+    county_node_cf --> mul2
+    mul2 --> county_dg
 
     subgraph wecc240_data
         counties
@@ -40,7 +44,9 @@ flowchart LR
         county_node_map
         node_total
         county_node_cf
+        county_dg
 
-        mul1
+        mul1((x))
+        mul2((x))
     end
 ```
