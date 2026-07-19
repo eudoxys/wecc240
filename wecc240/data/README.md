@@ -37,20 +37,56 @@ flowchart TD
     county_node_cf --> mul2
     mul2 --> county_dg
 
+    node_total --> sum1
+    node_dg -->|-| sum1
+    sum1 --> node_net
+
+    county_total --> sum2
+    county_dg -->|-| sum2
+    sum2 --> county_net
+
+    county_total -->|Σ
+    states| state_total
+    county_dg -->|Σ
+        states| state_dg
+    
+    state_dg -->|-| sum3
+    state_total --> sum3
+    sum3 --> state_net
+
+    state_mwh --> mul3
+    state_net -->|1/Σ
+        states| mul3
+    mul3 --> state_scalar
+
     subgraph data/wecc240_data.py
         counties
         states
         bus_gis
         bustype_load_US
+
         node_dg
-        state_mwh
-        county_total
-        county_node_map
         node_total
+        node_net
+
         county_node_cf
+        county_node_map
         county_dg
+        county_total
+        county_net
+
+        state_mwh
+        state_total
+        state_dg
+        state_net
+        state_scalar
+
+        sum1((+))
+        sum2((+))
+        sum3((+))
 
         mul1((x))
         mul2((x))
+        mul3((x))
     end
 ```
