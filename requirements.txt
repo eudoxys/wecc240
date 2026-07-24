@@ -4,6 +4,7 @@ pandas
 
 eia @ git+https://github.com/eudoxys/eia
 fips @ git+https://github.com/eudoxys/fips
+geohash @ git+https://github.com/eudoxys/geohash
 loads @ git+https://github.com/eudoxys/loads
 pypower @ git+https://github.com/eudoxys/pypower
 pypower_sim @ git+https://github.com/eudoxys/pypower_sim
