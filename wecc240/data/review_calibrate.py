@@ -69,6 +69,7 @@ def _(bus_gis, clear_results, mo):
         step=0.1,
         value=1.1,
         show_value=True,
+        debounce=True,
     )
     power_ui = mo.ui.slider(
         label="Power: ",
@@ -77,13 +78,15 @@ def _(bus_gis, clear_results, mo):
         step=0.1,
         value=0.7,
         show_value=True,
+        debounce=True,
     )
-    gamma_options = [10**n for n in range(-2,6)]
+    gamma_options = [10**n for n in range(-2,8)]
     gamma_ui = mo.ui.slider(
         label=r"$\gamma$",
         steps=gamma_options,
         value=1000,
         show_value=True,
+        debounce=True,
     )
     mu_options = [0] + sorted([x*y for x in [1,2,5] for y in [10**n for n in range(-2,5)]])
     mu_ui = mo.ui.slider(
@@ -91,6 +94,7 @@ def _(bus_gis, clear_results, mo):
         steps=mu_options,
         value=1.0,
         show_value=True,
+        debounce=True,
     )
     lambda_options = [0] + [10**n for n in range(-3,7)]
     lambda_ui = mo.ui.slider(
@@ -98,6 +102,7 @@ def _(bus_gis, clear_results, mo):
         steps=lambda_options,
         value=0.0,
         show_value=True,
+        debounce=True,
     )
     epsilon_options = [10**n for n in range(-6,1)]
     epsilon_ui = mo.ui.slider(
@@ -105,6 +110,7 @@ def _(bus_gis, clear_results, mo):
         steps=epsilon_options,
         value=1e-3,
         show_value=True,
+        debounce=True,
     )
     target_ui = mo.hstack(
         [
@@ -128,14 +134,18 @@ def _(bus_gis, clear_results, mo):
         ba_ui,
         clear_ui,
         energy_ui,
+        epsilon_options,
         epsilon_ui,
+        gamma_options,
         gamma_ui,
+        lambda_options,
         lambda_ui,
         month_ui,
         mu_options,
         mu_ui,
         normalize_ui,
         power_ui,
+        score_ui,
         target_ui,
         year_ui,
     )
@@ -150,7 +160,11 @@ def _(
     pd,
     plot_results,
     problem,
-    sweep_ui,
+    score_ui,
+    sweep_epsilon_ui,
+    sweep_gamma_ui,
+    sweep_lambda_ui,
+    sweep_mu_ui,
     target_ui,
 ):
     # Display history of results
@@ -179,14 +193,10 @@ def _(
     result_ui = mo.vstack(
         [
             mo.ui.table(
-                _results.round(6).sort_values(["BA","Y/M","Perr (%)","Score","Eerr (%)"]),
+                _results.round(6).sort_index(),#sort_values(["BA","Y/M","Perr (%)","Score","Eerr (%)"]),
                 selection=None,page_size=len(mu_options)
             ),
-            mo.hstack([
-                # score_ui, 
-                sweep_ui,
-                clear_ui, 
-            ]),
+            mo.hstack([sweep_gamma_ui,sweep_mu_ui,sweep_lambda_ui,sweep_epsilon_ui,score_ui,clear_ui,],justify='start'), 
         ]
     )
     return plot_ui, result_ui
@@ -201,17 +211,18 @@ def _():
 
 
 @app.cell
-def _(E, P, X, epsilon_ui, gamma_ui, lambda_ui, mu_ui, solution):
+def _(E, P, X, epsilon_ui, gamma_ui, lambda_ui, mo, mu_ui, solution):
     # Obtain the solution to the problem
-    cost, problem = solution(
-        X,
-        E,
-        P,
-        gamma=gamma_ui.value,
-        lam=lambda_ui.value,
-        mu=mu_ui.value,
-        eps=epsilon_ui.value,
-    )
+    with mo.status.spinner("Solving problem..."):
+        cost, problem = solution(
+            X,
+            E,
+            P,
+            gamma=gamma_ui.value,
+            lam=lambda_ui.value,
+            mu=mu_ui.value,
+            eps=epsilon_ui.value,
+        )
     return (problem,)
 
 
@@ -304,7 +315,7 @@ def _(X, ba_ui, forward, month_ui, np, record_result, year_ui):
             round(get_scalar(problem,"gamma"), 4),
             round(get_scalar(problem,"mu"), 4),
             round(get_scalar(problem,"lam"), 4),
-            round(get_scalar(problem,"eps"), 4),
+            round(get_scalar(problem,"eps"), 6),
             round(abs(energy_ferr*100), 2),
             round(abs(power_ferr*100), 2),
             round(score, 3),
@@ -320,15 +331,52 @@ def _(
     P,
     X,
     epsilon_ui,
+    gamma_options,
+    get_results,
+    lambda_ui,
+    mo,
+    mu_ui,
+    solution,
+):
+    # Sweep values of gamma and record solution results
+    def sweep_gamma(*args, **kwargs):
+        with mo.status.progress_bar(
+            title="Sweeping values of gamma",
+            total=len(gamma_options),
+            remove_on_exit=True,
+        ) as _bar:
+            for gamma in gamma_options:
+                _bar.update(subtitle=f"Solving {gamma=}")
+                get_results(
+                    solution(
+                        X,
+                        E,
+                        P,
+                        gamma=gamma,
+                        mu=mu_ui.value,
+                        lam=lambda_ui.value,
+                        eps=epsilon_ui.value,
+                    )[1]
+                )
+
+    sweep_gamma_ui = mo.ui.button(label=r"Sweep $\gamma$", on_click=sweep_gamma)
+    return (sweep_gamma_ui,)
+
+
+@app.cell
+def _(
+    E,
+    P,
+    X,
+    epsilon_ui,
     gamma_ui,
     get_results,
     lambda_ui,
     mo,
     mu_options,
-    problem,
     solution,
 ):
-    # Sweep values of my and record solution results
+    # Sweep values of mu and record solution results
     def sweep_mu(*args, **kwargs):
         with mo.status.progress_bar(
             title="Sweeping values of mu",
@@ -349,16 +397,84 @@ def _(
                     )[1]
                 )
 
-    sweep_ui = mo.hstack(
-        [
-            mo.ui.button(label=r"Sweep $\mu$", on_click=sweep_mu),
-            mo.md(
-                f"with $\lambda={get_scalar(problem, 'lam'):.3f}$, $\gamma={get_scalar(problem, 'gamma'):.3f}$, and $\epsilon={get_scalar(problem, 'eps')}$"
-            ),
-        ],
-        justify="start",
-    )
-    return (sweep_ui,)
+    sweep_mu_ui = mo.ui.button(label=r"Sweep $\mu$", on_click=sweep_mu)
+    return (sweep_mu_ui,)
+
+
+@app.cell
+def _(
+    E,
+    P,
+    X,
+    epsilon_ui,
+    gamma_ui,
+    get_results,
+    lambda_options,
+    mo,
+    mu_ui,
+    solution,
+):
+    # sweep values of lambda and record results
+    def sweep_lambda(*args, **kwargs):
+        with mo.status.progress_bar(
+            title="Sweeping values of lambda",
+            total=len(lambda_options),
+            remove_on_exit=True,
+        ) as _bar:
+            for lam in lambda_options:
+                _bar.update(subtitle=f"Solving {lam=}")
+                get_results(
+                    solution(
+                        X,
+                        E,
+                        P,
+                        gamma=gamma_ui.value,
+                        mu=mu_ui.value,
+                        lam=lam,
+                        eps=epsilon_ui.value,
+                    )[1]
+                )
+
+    sweep_lambda_ui = mo.ui.button(label=r"Sweep $\lambda$", on_click=sweep_lambda)
+    return (sweep_lambda_ui,)
+
+
+@app.cell
+def _(
+    E,
+    P,
+    X,
+    epsilon_options,
+    gamma_ui,
+    get_results,
+    lambda_ui,
+    mo,
+    mu_ui,
+    solution,
+):
+    # Sweep values of epsilon and record solution results
+    def sweep_epsilon(*args, **kwargs):
+        with mo.status.progress_bar(
+            title="Sweeping values of epsilon",
+            total=len(epsilon_options),
+            remove_on_exit=True,
+        ) as _bar:
+            for eps in epsilon_options:
+                _bar.update(subtitle=f"Solving {eps=}")
+                get_results(
+                    solution(
+                        X,
+                        E,
+                        P,
+                        gamma=gamma_ui.value,
+                        mu=mu_ui.value,
+                        lam=lambda_ui.value,
+                        eps=eps
+                    )[1]
+                )
+
+    sweep_epsilon_ui = mo.ui.button(label=r"Sweep $\epsilon$", on_click=sweep_epsilon)
+    return (sweep_epsilon_ui,)
 
 
 @app.cell
@@ -452,7 +568,6 @@ def _(mo, pd):
     with mo.status.spinner("Reading bus GIS data"):
         bus_gis = pd.read_csv("https://raw.githubusercontent.com/eudoxys/wecc240/refs/heads/main/wecc240/data/bus_gis.csv")
         load_bus = bus_gis[bus_gis["LOAD"] > 0]
-
     return bus_gis, load_bus
 
 
@@ -488,7 +603,7 @@ def _():
     import pandas as pd
     import cvxpy as cp
     import matplotlib.pyplot as plt
-    from node_calibrate import cvx_options, _solver as solution
+    from node_calibrate import cvx_options, calibrate as solution
 
     return cal, mo, np, pd, plt, solution
 
