@@ -78,21 +78,21 @@ def _(bus_gis, clear_results, mo):
         value=0.7,
         show_value=True,
     )
-    gamma_options = [10**n for n in range(0,6)]
+    gamma_options = [10**n for n in range(-2,6)]
     gamma_ui = mo.ui.slider(
         label=r"$\gamma$",
         steps=gamma_options,
         value=1000,
         show_value=True,
     )
-    mu_options = [0] + sorted([x*y for x in [1,2,5] for y in [10**n for n in range(-2,3)]])
+    mu_options = [0] + sorted([x*y for x in [1,2,5] for y in [10**n for n in range(-2,5)]])
     mu_ui = mo.ui.slider(
         label=r"$\mu$: ",
         steps=mu_options,
         value=1.0,
         show_value=True,
     )
-    lambda_options = [0] + [10**n for n in range(-3,3)]
+    lambda_options = [0] + [10**n for n in range(-3,7)]
     lambda_ui = mo.ui.slider(
         label=r"$\lambda$: ",
         steps=lambda_options,
