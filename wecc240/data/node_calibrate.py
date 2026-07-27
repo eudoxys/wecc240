@@ -1,14 +1,48 @@
-# Setup and solve the problem
-# Set the default cvxpy solve options
+"""Node calibration
+
+Description
+-----------
+
+This module enable calibration of load data based on two types of constraints.
+
+- **Energy**: the row sums match the target total energy
+- **Power**: the maximum of the column sums match the target peak power
+
+Target can be specified as one of the following:
+
+1. `None`: The target is the existing value taken from the data.
+
+2. `float`: The target is evaluated over all the columns of the data.
+
+3. `list`: The target is different for multiple column groups in the data. In
+this case each member of the target list is specified as a tuple with a list
+of column indexes and a float specifying the target for that column group.
+Note that there is no requirement that the columns be exclusive to a target
+but specifying a column in multiple targets may create an infeasible
+problem.
+
+Example
+-------
+
+This example rescales the node_total.csv data so that the energy is 10% higher
+and peak load is 30% lower.
+
+    data = pd.read_csv("node_total.csv",index_col=[0],parse_dates[0])
+    result,problem = node_calibrate(data,E_target=1.1,P_target=0.9)
+    scale = get_variable(problem,"s")
+    offset = get_variable(problem,"b")
+    print(f"{s=:4f}, {b=:.4f}")
+"""
+
 import numpy as np
 import cvxpy as cp
 
-def cvx_options(**kwargs):
+def cvx_options(**kwargs) -> dict:
     """Specify default cvx problem options
     
     Arguments
     ---------
-    - `**kwargs`: modifications to default to appy to this option set
+    - `**kwargs`: modifications to default applied to this option set
 
     Examples
     --------
@@ -34,9 +68,9 @@ def cvx_options(**kwargs):
     return options
 
 def _check_target(
-    target:float|list[tuple[list[int],float]],
+    target:float|list[tuple[list[int],float]]|None,
     default:float,
-    ):
+    ) -> float|list[tuple[list[int],float]]:
     """Check the target value(s)
 
     Arguments
@@ -52,15 +86,18 @@ def _check_target(
     - `float|list[tuple[list[int],float]]`: the checked value to use or the
       default value
     """
-    if target is None:
+    if target is None: # target is None
         target = default
-    elif hasattr(target,"__iter__"):
+    elif hasattr(target,"__iter__"): # target is iterable
         for n,x in enumerate(target):
             assert hasattr(x[0],"__iter__"), f"target {n} must be iterable"
             assert all([isinstance(y,int) for y in x[0]]), f"all members of {n=} must be int"
             assert isinstance(x[1],float)
         return target
+
+    # target must be float
     assert isinstance(target,float)
+
     return target
 
 def calibrate(X:np.array,
@@ -72,7 +109,7 @@ def calibrate(X:np.array,
             lam:float=0.0,
             eps:float=1e-6,
             options:dict=cvx_options(),
-            ):
+            ) -> [float,cp.Problem]:
     """Solve the sum/max target problem using scale and offset
 
     Arguments
@@ -124,13 +161,18 @@ def calibrate(X:np.array,
 
     T, n = X.shape
 
+    # constants we'd like named for clearer diagnostics
     c = cp.Constant(X.min(axis=0),name='c')     # per-column minima (for output nonneg reduction)
-    E = cp.Constant(E_target,name='E')          # total energy target scalar
+    if hasattr(E_target,"__iter__"):            # total energy target scalar
+        E = cp.Constant([x[1] for x in E_target],name='E')
+    else:
+        E = cp.Constant(E_target,name='E')          
     if hasattr(P_target,"__iter__"):            # peak power target scalar
         P = cp.Constant([x[1] for x in P_target],name='P')
     else:
         P = cp.Constant(P_target,name='P')      
 
+    # problem variables
     s = cp.Variable(n, nonneg=True, name='s')   # per-column scaling factors
     b = cp.Variable(n, name='b')                # per-column offsets
 
@@ -138,14 +180,15 @@ def calibrate(X:np.array,
     Y = cp.multiply(X, 
             cp.reshape(s, (1, n),order='C')) + cp.reshape(b, (1, n),order='C')
 
-    peak = cp.max(cp.sum(Y, axis=1))            # max row-sum of OUTPUT (convex)
-    csum = cp.sum(Y,axis=1)
-    energy = cp.sum(Y)                          # total energy of OUTPUT (affine)
-
+    # hyper-parameters
     mu = cp.Constant(mu,name='mu')
     lam = cp.Constant(lam,name='lam')
     gamma = cp.Constant(gamma,name='gamma')
     eps = cp.Constant(eps,name='eps')
+
+    # useful stuff that used more than once
+    csum = cp.sum(Y,axis=1)
+    energy = cp.sum(Y)                          # total energy of OUTPUT (affine)
 
     objective = cp.Minimize(
         gamma * cp.sum_squares(Y - X) / T**2    # == ||X diag(s) + 1 b^T - X||_F^2
@@ -154,20 +197,23 @@ def calibrate(X:np.array,
         + eps * (cp.sum_squares(s - 1) + cp.sum_squares(b))
     )
 
-    if hasattr(P_target,"__iter__"):
-        constraints = []
-        for n,x in P_target:
-            constraints.append(cp.max(csum[n]) <= x)
+    # compile constraints
+    constraints = [cp.multiply(s, c) + b >= 0]  # output nonnegativity (reduced form)
+                                                # equivalent full form: Y >= 0
+    if hasattr(P_target,"__iter__"):            # power inequality (convex relaxation)
+        constraints += [                         # multiple P_target values...
+            cp.max(csum[x[0]]) <= P[n] 
+                for n,x in enumerate(P_target) # ...by column index of target
+            ]
     else:
-        constraints = [peak <= P]                    # power inequality (convex relaxation)
+        constraints += [cp.max(csum) <= P]       # single P_target value
         
-    constraints.append(cp.multiply(s, c) + b >= 0)  # output nonnegativity (reduced form)
-                                                    # equivalent full form: Y >= 0
-
+    # solve problem (if possible)
     problem = cp.Problem(objective, constraints)
     assert problem.is_dcp(), "ERROR: problem is not DCP"
     result = problem.solve(**options)
 
+    # diagnostic output if cvx_options includes `verbose=True`
     if "verbose" in options and options["verbose"]:
         if problem.status not in ("infeasible", "unbounded"):
             scale = s.value.round(4)
@@ -190,14 +236,18 @@ def calibrate(X:np.array,
 
     return result,problem
 
-def get_scalar(problem,name):
+def get_scalar(
+    problem:cp.Problem,
+    name:str) -> float:
     """Read scalar from problem data"""
     for const in problem.constants():
         if const.name() == name:
             return float(const.value)
     raise ValueError(f"{name=} not found")
 
-def get_variable(problem,name):
+def get_variable(
+    problem:cp.Problem,
+    name:str) -> np.array:
     """Read variable from problem data"""
     for var in problem.variables():
         if var.name() == name:
