@@ -68,10 +68,10 @@ def calibrate(X:np.array,
             E_target:float|list[tuple[list[int],float]]=None,
             P_target:float|list[tuple[list[int],float]]=None,
             *,
-            gamma:float=1.0,
-            mu:float=0.0,
+            gamma:float=1000.0,
+            mu:float=1.0,
             lam:float=0.0,
-            eps:float=1e-3,
+            eps:float=1e-6,
             options:dict=cvx_options(),
             ):
     """Solve the sum/max target problem using scale and offset
@@ -195,76 +195,57 @@ def get_variable(problem,name):
         if var.name() == name:
             return var.value
 
-def get_parameter(problem,name):
-    """Read variable from problem data"""
-    for param in problem.parameters():
-        if param.name() == name:
-            return param.value
-
 if __name__ == "__main__":
 
+    import os
     import pandas as pd
-    test = pd.read_csv("https://raw.githubusercontent.com/eudoxys/wecc240/refs/heads/main/wecc240/data/node_total.csv", index_col=[0], parse_dates=[0])
+    import warnings
+    # warnings.simplefilter('error')
 
-    # print("Testing identity problem over all months",end="",flush=True)
-    # for me in pd.date_range(start=test.index.min(),end=test.index.max(),freq="ME"):
-    #     print(".",end="",flush=True)
-    #     year,month,lastday = me.year,me.month,me.day
-    #     dt = pd.date_range(
-    #         start=f"{year}-{month:02d}-01 00:00:00+0000",
-    #         end=f"{year}-{month:02d}-{lastday} 23:59:59+0000",
-    #         freq="1h"
-    #         )
-    #     X = test.loc[dt,:].values
-    #     X /= X.sum(axis=1).max()
-    #     E = np.sum(X)
-    #     P = np.max(np.sum(X,axis=1))
-    #     result,problem = calibrate(X,
-    #         options=cvx_options(verbose=False),
-    #         )
-    #     s = get_variable(problem,'s')
-    #     b = get_variable(problem,'b')
-    #     assert (s.round(2)==1.0).all()
-    #     assert (b.round(2)==0.0).all()
-    # print("ok")
+    filename = "node_total.csv"
+    test = pd.read_csv(filename if os.path.exists(filename) 
+        else f"https://raw.githubusercontent.com/eudoxys/wecc240/refs/heads/main/wecc240/data/{filename}", 
+        index_col=[0], parse_dates=[0])
 
-    # print("Testing mu sweep on August 2020",end="",flush=True)
-    # dt = pd.date_range(
-    #     start=f"2020-08-01 00:00:00+0000",
-    #     end=f"2020-08-31 23:59:59+0000",
-    #     freq="1h"
-    #     )
-    # for mu in [0] + sorted([x*y for x in [1,2,5] for y in [10**n for n in range(-2,5)]]):
-    #     print(".",end="",flush=True)
-    #     X = test.loc[dt,:].values
-    #     X /= X.sum(axis=1).max()
-    #     E = np.sum(X)
-    #     P = np.max(np.sum(X,axis=1))
-    #     result,problem = calibrate(X,
-    #         mu=mu,
-    #         options=cvx_options(verbose=False),
-    #         )
-    #     s = get_variable(problem,'s')
-    #     b = get_variable(problem,'b')
-    #     assert (s.round(2)==1.0).all()
-    #     assert (b.round(2)==0.0).all()
-    # print("ok")
+    options = cvx_options(verbose=False)
 
-    print("Testing lambda sweep on August 2020",end="",flush=True)
+    print("Testing identify problem on mu sweep of August 2020",end="",flush=True)
     dt = pd.date_range(
         start=f"2020-08-01 00:00:00+0000",
         end=f"2020-08-31 23:59:59+0000",
         freq="1h"
         )
-    for lam in [0] + sorted([x*y for x in [1,2,5] for y in [10**n for n in range(-2,5)]]):
+    for mu in [0] + sorted([x*y for x in [1,2,5] for y in [10**n for n in range(-2,5)]]):
         print(".",end="",flush=True)
-        X = test.loc[dt,:].values
+        X = test.loc[dt,:].dropna().values
         X /= X.sum(axis=1).max()
         E = np.sum(X)
         P = np.max(np.sum(X,axis=1))
         result,problem = calibrate(X,
-            lam=lam,
-            options=cvx_options(verbose=False),
+            mu=mu,
+            options=cvx_options(**options),
+            )
+        s = get_variable(problem,'s').round(2)
+        b = get_variable(problem,'b').round(2)
+        assert (s==1.0).all(), f"{mu=}: {s=} not all 1.0"
+        assert (b==0.0).all(), f"{mu=}: {b=} not all 0.0"
+    print("ok")
+
+    print("Testing identity problem over months in data",end="",flush=True)
+    for me in pd.date_range(start=test.index.min(),end=test.index.max(),freq="ME"):
+        print(".",end="",flush=True)
+        year,month,lastday = me.year,me.month,me.day
+        dt = pd.date_range(
+            start=f"{year}-{month:02d}-01 00:00:00+0000",
+            end=f"{year}-{month:02d}-{lastday} 23:59:59+0000",
+            freq="1h"
+            )
+        X = test.loc[dt,:].dropna().values
+        X /= X.sum(axis=1).max()
+        E = np.sum(X)
+        P = np.max(np.sum(X,axis=1))
+        result,problem = calibrate(X,
+            options=cvx_options(**options),
             )
         s = get_variable(problem,'s')
         b = get_variable(problem,'b')
@@ -272,4 +253,3 @@ if __name__ == "__main__":
         assert (b.round(2)==0.0).all()
     print("ok")
 
-    
