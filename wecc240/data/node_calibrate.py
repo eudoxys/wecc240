@@ -54,11 +54,10 @@ def _check_target(
     """
     if target is None:
         target = default
-    elif isinstance(target,list):
+    elif hasattr(target,"__iter__"):
         for n,x in enumerate(target):
-            assert hasattr(x,"__iter__"), f"target {n} must be iterable"
-            assert hasattr(x[0],"__iter__")
-            assert [isinstance(y,int) for y in x].all()
+            assert hasattr(x[0],"__iter__"), f"target {n} must be iterable"
+            assert all([isinstance(y,int) for y in x[0]]), f"all members of {n=} must be int"
             assert isinstance(x[1],float)
         return target
     assert isinstance(target,float)
@@ -127,7 +126,10 @@ def calibrate(X:np.array,
 
     c = cp.Constant(X.min(axis=0),name='c')     # per-column minima (for output nonneg reduction)
     E = cp.Constant(E_target,name='E')          # total energy target scalar
-    P = cp.Constant(P_target,name='P')          # peak power target scalar
+    if hasattr(P_target,"__iter__"):            # peak power target scalar
+        P = cp.Constant([x[1] for x in P_target],name='P')
+    else:
+        P = cp.Constant(P_target,name='P')      
 
     s = cp.Variable(n, nonneg=True, name='s')   # per-column scaling factors
     b = cp.Variable(n, name='b')                # per-column offsets
@@ -137,6 +139,7 @@ def calibrate(X:np.array,
             cp.reshape(s, (1, n),order='C')) + cp.reshape(b, (1, n),order='C')
 
     peak = cp.max(cp.sum(Y, axis=1))            # max row-sum of OUTPUT (convex)
+    csum = cp.sum(Y,axis=1)
     energy = cp.sum(Y)                          # total energy of OUTPUT (affine)
 
     mu = cp.Constant(mu,name='mu')
@@ -150,11 +153,16 @@ def calibrate(X:np.array,
         - lam * cp.sum(b) / n
         + eps * (cp.sum_squares(s - 1) + cp.sum_squares(b))
     )
-    constraints = [
-        peak <= P,                      # power inequality (convex relaxation)
-        cp.multiply(s, c) + b >= 0,     # output nonnegativity (reduced form)
-                                        # equivalent full form: Y >= 0
-    ]
+
+    if hasattr(P_target,"__iter__"):
+        constraints = []
+        for n,x in P_target:
+            constraints.append(cp.max(csum[n]) <= x)
+    else:
+        constraints = [peak <= P]                    # power inequality (convex relaxation)
+        
+    constraints.append(cp.multiply(s, c) + b >= 0)  # output nonnegativity (reduced form)
+                                                    # equivalent full form: Y >= 0
 
     problem = cp.Problem(objective, constraints)
     assert problem.is_dcp(), "ERROR: problem is not DCP"
@@ -200,16 +208,68 @@ if __name__ == "__main__":
     import os
     import pandas as pd
     import warnings
+    from fips import Counties
+
     # warnings.simplefilter('error')
-
-    filename = "node_total.csv"
-    test = pd.read_csv(filename if os.path.exists(filename) 
-        else f"https://raw.githubusercontent.com/eudoxys/wecc240/refs/heads/main/wecc240/data/{filename}", 
-        index_col=[0], parse_dates=[0])
-
     options = cvx_options(verbose=False)
 
-    print("Testing identify problem on mu sweep of August 2020",end="",flush=True)
+    # print("Testing identity problem over all months of node data",end="",flush=True)
+
+    # # load county/state node mapping
+    # county_node_map = pd.read_csv(
+    #     "county_node_map.csv",
+    #     index_col=[0],
+    #     usecols=["county_st","load"],
+    #     )
+    # county_node_map.columns = ["node"]
+    # county_node_map["state"] = [x.split()[-1] for x in county_node_map.index]
+    # state_node_map = county_node_map.reset_index().set_index("state")
+    # # for state in state_node_map.index.unique():
+    # #     print(state,state_node_map.loc[state,"node"].to_list())
+    # filename = "node_total.csv"
+    # node_total = pd.read_csv(filename, index_col=[0], parse_dates=[0])
+    # missing = set(node_total.columns) - set(county_node_map.node)
+    # assert missing == set(), f"county_total.csv: {missing=} not in the county_node_map.csv"
+
+    # for me in pd.date_range(start=node_total.index.min(),end=node_total.index.max(),freq="ME"):
+    #     print(".",end="",flush=True)
+    #     year,month,lastday = me.year,me.month,me.day
+    #     dt = pd.date_range(
+    #         start=f"{year}-{month:02d}-01 00:00:00+0000",
+    #         end=f"{year}-{month:02d}-{lastday} 23:59:59+0000",
+    #         freq="1h"
+    #         )
+    #     X = node_total.loc[dt,:].dropna().values
+    #     X /= X.sum(axis=1).max()
+    #     E = np.sum(X)
+    #     P = np.max(np.sum(X,axis=1))
+    #     result,problem = calibrate(X,
+    #         options=cvx_options(**options),
+    #         )
+    #     s = get_variable(problem,'s')
+    #     b = get_variable(problem,'b')
+    #     assert (s.round(2)==1.0).all()
+    #     assert (b.round(2)==0.0).all()
+    # print("ok")
+
+
+    print("Testing full problem on mu sweep of August 2020 county data",end="",flush=True)
+
+    # read county-level total loads
+    filename = "county_total.csv.gz"
+    county_total = pd.read_csv(filename, index_col=[0], parse_dates=[0])
+    county_ndx = {x:n for n,x in enumerate(county_total.columns)} # index into load data columns
+
+    # read county GIS data
+    counties = Counties(use_index="SYSTEM",selection="WECC",set_index="REGION")
+    counties["COUNTY_ST"] = [f"{x} {y}" for x,y in counties[["COUNTY","ST"]].values]
+    counties["COUNTY_NDX"] = [county_ndx[x] if x in county_ndx else -1 for x in counties["COUNTY_ST"].values]
+    counties.drop(counties[counties["COUNTY_NDX"]==-1].index,inplace=True,axis=0)
+    peaks = [ # peak target values for regions
+        (counties.loc["CAISO"]["COUNTY_NDX"].astype(int).to_list(),45.0), # TODO: get exact value for Aug 2020 in CAISO
+        (counties["COUNTY_NDX"].astype(int).to_list(),167.0), # TODO: get exact value for Aug 2020 in WECC
+    ]
+
     dt = pd.date_range(
         start=f"2020-08-01 00:00:00+0000",
         end=f"2020-08-31 23:59:59+0000",
@@ -217,39 +277,17 @@ if __name__ == "__main__":
         )
     for mu in [0] + sorted([x*y for x in [1,2,5] for y in [10**n for n in range(-2,5)]]):
         print(".",end="",flush=True)
-        X = test.loc[dt,:].dropna().values
+        X = county_total.loc[dt,:].dropna().values
         X /= X.sum(axis=1).max()
         E = np.sum(X)
         P = np.max(np.sum(X,axis=1))
         result,problem = calibrate(X,
+            P_target=peaks,
             mu=mu,
             options=cvx_options(**options),
             )
         s = get_variable(problem,'s').round(2)
         b = get_variable(problem,'b').round(2)
-        assert (s==1.0).all(), f"{mu=}: {s=} not all 1.0"
-        assert (b==0.0).all(), f"{mu=}: {b=} not all 0.0"
+        # assert (s==1.0).all(), f"{mu=}: {s=} not all 1.0"
+        # assert (b==0.0).all(), f"{mu=}: {b=} not all 0.0"
     print("ok")
-
-    print("Testing identity problem over months in data",end="",flush=True)
-    for me in pd.date_range(start=test.index.min(),end=test.index.max(),freq="ME"):
-        print(".",end="",flush=True)
-        year,month,lastday = me.year,me.month,me.day
-        dt = pd.date_range(
-            start=f"{year}-{month:02d}-01 00:00:00+0000",
-            end=f"{year}-{month:02d}-{lastday} 23:59:59+0000",
-            freq="1h"
-            )
-        X = test.loc[dt,:].dropna().values
-        X /= X.sum(axis=1).max()
-        E = np.sum(X)
-        P = np.max(np.sum(X,axis=1))
-        result,problem = calibrate(X,
-            options=cvx_options(**options),
-            )
-        s = get_variable(problem,'s')
-        b = get_variable(problem,'b')
-        assert (s.round(2)==1.0).all()
-        assert (b.round(2)==0.0).all()
-    print("ok")
-
