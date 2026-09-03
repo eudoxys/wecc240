@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.10"
+__generated_with = "0.23.14"
 app = marimo.App(width="medium")
 
 
@@ -14,14 +14,39 @@ def _(mo):
 
 @app.cell
 def _(mo):
-    with open("data/README.md","r") as fh:
+    with open("README.md","r") as fh:
         _result = "\n".join(fh.read().split("```")[1].split("\n")[1:])
         print(_result)
     mo.mermaid(f"""
     ---
-    title: Figure 1 - Load model synthesis data flow
+    title: Figure 1 - WECC 240 model data flow
     ---
     {_result}""")
+    return
+
+
+@app.cell
+def _():
+    from bus_gis import app as bus_gis_app
+    from node_dg import app as node_dg_app
+    from node_total import app as node_total_app
+    from node_net import app as node_net_app
+
+    return bus_gis_app, node_dg_app, node_net_app, node_total_app
+
+
+@app.cell
+async def _(bus_gis_app, mo, node_dg_app, node_net_app, node_total_app):
+    bus_gis = await bus_gis_app.embed()
+    node_dg = await node_dg_app.embed()
+    node_total = await node_total_app.embed()
+    node_net = await node_net_app.embed()
+    mo.ui.tabs({
+        "bus_gis": bus_gis.output,
+        "node_total":node_total.output,
+        "node_dg":node_dg.output,
+        "node_net":node_net.output,
+    },lazy=True)
     return
 
 

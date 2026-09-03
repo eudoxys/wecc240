@@ -67,6 +67,10 @@ def cvx_options(**kwargs) -> dict:
     options.update(kwargs)
     return options
 
+def _iterable(x):
+    """Check if object is iterable"""
+    return hasattr(x,"__iter__")
+
 def _check_target(
     target:float|list[tuple[list[int],float]]|None,
     default:float,
@@ -88,9 +92,9 @@ def _check_target(
     """
     if target is None: # target is None
         target = default
-    elif hasattr(target,"__iter__"): # target is iterable
+    elif _iterable(target): # target is iterable
         for n,x in enumerate(target):
-            assert hasattr(x[0],"__iter__"), f"target {n} must be iterable"
+            assert _iterable(x[0]), f"target {n} must be iterable"
             assert all([isinstance(y,int) for y in x[0]]), f"all members of {n=} must be int"
             assert isinstance(x[1],float)
         return target
@@ -163,11 +167,11 @@ def calibrate(X:np.array,
 
     # constants we'd like named for clearer diagnostics
     c = cp.Constant(X.min(axis=0),name='c')     # per-column minima (for output nonneg reduction)
-    if hasattr(E_target,"__iter__"):            # total energy target scalar
+    if _iterable(E_target):            # total energy target scalar
         E = cp.Constant([x[1] for x in E_target],name='E')
     else:
         E = cp.Constant(E_target,name='E')          
-    if hasattr(P_target,"__iter__"):            # peak power target scalar
+    if _iterable(P_target):            # peak power target scalar
         P = cp.Constant([x[1] for x in P_target],name='P')
     else:
         P = cp.Constant(P_target,name='P')      
@@ -200,7 +204,7 @@ def calibrate(X:np.array,
     # compile constraints
     constraints = [cp.multiply(s, c) + b >= 0]  # output nonnegativity (reduced form)
                                                 # equivalent full form: Y >= 0
-    if hasattr(P_target,"__iter__"):            # power inequality (convex relaxation)
+    if _iterable(P_target):            # power inequality (convex relaxation)
         constraints += [                         # multiple P_target values...
             cp.max(csum[x[0]]) <= P[n] 
                 for n,x in enumerate(P_target) # ...by column index of target
@@ -259,6 +263,7 @@ if __name__ == "__main__":
     import pandas as pd
     import warnings
     from fips import Counties
+    from scipy.optimize import minimize
 
     # warnings.simplefilter('error')
     options = cvx_options(verbose=False)
@@ -303,10 +308,9 @@ if __name__ == "__main__":
     # print("ok")
 
 
-    print("Testing full problem on mu sweep of August 2020 county data",end="",flush=True)
 
     # read county-level total loads
-    filename = "county_total.csv.gz"
+    filename = "county_total.csv"
     county_total = pd.read_csv(filename, index_col=[0], parse_dates=[0])
     county_ndx = {x:n for n,x in enumerate(county_total.columns)} # index into load data columns
 
@@ -315,29 +319,60 @@ if __name__ == "__main__":
     counties["COUNTY_ST"] = [f"{x} {y}" for x,y in counties[["COUNTY","ST"]].values]
     counties["COUNTY_NDX"] = [county_ndx[x] if x in county_ndx else -1 for x in counties["COUNTY_ST"].values]
     counties.drop(counties[counties["COUNTY_NDX"]==-1].index,inplace=True,axis=0)
-    peaks = [ # peak target values for regions
-        (counties.loc["CAISO"]["COUNTY_NDX"].astype(int).to_list(),45.0), # TODO: get exact value for Aug 2020 in CAISO
-        (counties["COUNTY_NDX"].astype(int).to_list(),167.0), # TODO: get exact value for Aug 2020 in WECC
-    ]
 
     dt = pd.date_range(
         start=f"2020-08-01 00:00:00+0000",
         end=f"2020-08-31 23:59:59+0000",
         freq="1h"
         )
+    
+    print("Testing full problem on mu sweep of August 2020 county data",end="",flush=True)
+    results = []
     for mu in [0] + sorted([x*y for x in [1,2,5] for y in [10**n for n in range(-2,5)]]):
         print(".",end="",flush=True)
         X = county_total.loc[dt,:].dropna().values
-        X /= X.sum(axis=1).max()
-        E = np.sum(X)
         P = np.max(np.sum(X,axis=1))
+        X /= P # normalize to total peak
+        peaks = [ # peak target values for regions
+            (counties["COUNTY_NDX"].astype(int).to_list(),162017.0 / P),
+            # (counties.loc["CAISO"]["COUNTY_NDX"].astype(int).to_list(),46974.0 / P),
+        ]
+        params = {
+            "gamma": 100.0,
+            "mu": mu,
+            "lam": 0.0,
+            "eps": 1e-6,
+        }
         result,problem = calibrate(X,
             P_target=peaks,
-            mu=mu,
             options=cvx_options(**options),
+            **params,
             )
         s = get_variable(problem,'s').round(2)
         b = get_variable(problem,'b').round(2)
-        # assert (s==1.0).all(), f"{mu=}: {s=} not all 1.0"
-        # assert (b==0.0).all(), f"{mu=}: {b=} not all 0.0"
+
+        Y = X * s + b
+
+        energy_ferr = 1 - Y.sum() / X.sum()
+        power_ferr = 1 - Y.sum(axis=1).max() / P
+        score = np.sqrt(np.sum((Y-X)**2))
+
+        results.append(pd.DataFrame(
+            data={
+                "P_wecc":[peaks[0][1]],
+                # "P_caiso":[peaks[1][1]],
+                "gamma":[params["gamma"]],
+                "lam":[params["lam"]],
+                "eps":[params["eps"]],
+                "E_err":[round(energy_ferr,4)],
+                "P_err":[round(power_ferr,4)],
+                "score":[round(score,3)]
+            },
+            index=[mu]))
+
+        report = pd.concat(results).rename_axis("mu").reset_index()
+        print("",report,sep="\n")
+        break
+        report.to_csv("node_calibrate.csv",index=True,header=True)
+
     print("ok")
