@@ -347,7 +347,7 @@ def read_county_total(*,
       - `timestamp`: date/time of record
       - ...: county/state name total power (MW)
     """
-    filename = "county_total.csv"
+    filename = "county_total.csv.gz"
     if os.path.exists(filename) and not refresh:
         county_total = pd.read_csv(filename,index_col=[0],parse_dates=[0])
     else:
@@ -383,7 +383,7 @@ def read_county_total(*,
             county_total.loc[nz,f"{county} {state}"] = data.loc[nz,"elec_total_MW"]
         county_total.rename_axis("timestamp",inplace=True)
         county_total = county_total.round(precision)
-        county_total.to_csv(filename,index=True)
+        county_total.to_csv(filename,index=True,compression="gzip")
     return county_total.copy().reset_index()
 
 #
