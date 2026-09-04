@@ -507,7 +507,7 @@ def read_county_node_cf(*,
       - `timestamp`: date/time of record
       - ...: county name contribution factor (per unit)
     """
-    filename = "county_node_cf.csv"
+    filename = "county_node_cf.csv.gz"
     if os.path.exists(filename) and not refresh:
         county_node_cf = pd.read_csv(filename,parse_dates=[0])
     else:
@@ -524,7 +524,7 @@ def read_county_node_cf(*,
             nz = total[total!=0].index
             county_node_cf.loc[nz,county_st] /= total.loc[nz]
         county_node_cf = county_node_cf.round(precision).reset_index()
-        county_node_cf.to_csv(filename,index=False,header=True)
+        county_node_cf.to_csv(filename,index=False,header=True,compression="gzip")
     return county_node_cf
 
 #

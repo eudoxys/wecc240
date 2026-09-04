@@ -30,7 +30,7 @@ def _(mo, read_county_node_cf):
 @app.cell
 def _(counties, data, mo, plt, state_ui):
     _plots = {}
-    _options = dict(figsize=(10,7),grid=True,xlabel="Date/Time (UTC)",ylabel="Power (MW)")
+    _options = dict(figsize=(10,7),grid=True,xlabel="Date/Time (UTC)",ylabel="Power (pu.MW)")
     with mo.status.progress_bar(title="Generating plots...",total=len(counties[state_ui.value]),remove_on_exit=True) as _bar:
         for _county in counties[state_ui.value]:
             plt.close()
