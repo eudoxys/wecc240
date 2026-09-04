@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.24.0"
+__generated_with = "0.23.14"
 app = marimo.App(width="medium")
 
 
@@ -150,54 +150,11 @@ def _(counties_caiso, county_dg, county_total, dt):
 
 
 @app.cell
-def _(
-    D,
-    X,
-    calibrate,
-    dt_month,
-    energy_target,
-    g_caiso,
-    g_wecc,
-    get_gamma,
-    get_lam,
-    get_mu,
-    mo,
-    np,
-    peak_target,
-    state_groups,
-    state_ndx,
-):
-    E_state = {
-        state_ndx[x]: y
-        for x, y in energy_target.loc[dt_month].to_dict().items()
-    }
-    P_caiso, P_wecc = peak_target.loc[dt_month].values
-    with mo.capture_stdout() as _buf:
-        with mo.status.spinner("Solving problem"):
-            result = calibrate(
-                X,
-                D,
-                state_groups,
-                np.array(g_caiso),
-                np.array(g_wecc),
-                E_state,
-                P_caiso,
-                P_wecc,
-                gamma=get_gamma(),
-                mu=np.array(get_mu()),
-                lam=np.array(get_lam()),
-                eps=1e-6,
-            )
-    stdout = _buf.getvalue()
-    return E_state, P_caiso, P_wecc, result, stdout
-
-
-@app.cell
 def _(mo, state_groups):
     get_gamma,set_gamma = mo.state(1.0)
-    get_mu,set_my = mo.state([1.0]*len(state_groups))
+    get_mu,set_mu = mo.state([1.0]*len(state_groups))
     get_lam,set_lam = mo.state([1.0]*2)
-    return get_gamma, get_lam, get_mu, set_gamma, set_lam
+    return get_gamma, get_lam, get_mu, set_gamma, set_lam, set_mu
 
 
 @app.cell
@@ -265,6 +222,35 @@ def _(
 
 
 @app.cell
+def _(get_gamma, get_lam, get_mu, json, mo, set_gamma, set_lam, set_mu):
+    def save_parameters(*args):
+        with open("parameters.json","w") as fh:
+            json.dump({
+                "gamma": get_gamma(),
+                "mu": get_mu(),
+                "lambda": get_lam(),
+            },fh)
+
+    def load_parameters(*args):
+        with open("parameters.json","r") as fh:
+            params = json.load(fh)
+            set_gamma(params["gamma"])
+            set_mu(params["mu"])
+            set_lam(params["lambda"])
+    
+    save_ui = mo.ui.button(label="Save",on_click=save_parameters)
+    load_ui = mo.ui.button(label="Load",on_click=load_parameters)
+    parameters_ui = mo.hstack([
+        mo.md(f"$\gamma = {get_gamma()}$"),
+        mo.md(f"$\mu = {get_mu()}$"),
+        mo.md(f"$\lambda = {get_lam()}$"),
+        save_ui,
+        load_ui,
+    ])
+    return (parameters_ui,)
+
+
+@app.cell
 def _(
     D,
     E_state,
@@ -275,16 +261,12 @@ def _(
     county_names,
     g_caiso,
     g_wecc,
-    gamma_ui,
-    lam_caiso_ui,
-    lam_wecc_ui,
     mo,
-    mu_ui,
     pd,
     state_groups,
     stdout,
 ):
-    _tabs = mo.ui.tabs({
+    problem_ui = mo.ui.tabs({
         "X": pd.DataFrame(X[:,county_ids],columns=county_names).round(2),
         "D": pd.DataFrame(D[:,county_ids],columns=county_names).round(2),
         "state_groups": mo.ui.table(state_groups,selection=None),
@@ -295,9 +277,13 @@ def _(
         "P_wecc": P_wecc,
         "Diagnostics": mo.md(f"```\n{stdout}\n```")
     })
+    return (problem_ui,)
+
+
+@app.cell
+def _(gamma_ui, lam_caiso_ui, lam_wecc_ui, mo, mu_ui):
     params_ui = mo.hstack([gamma_ui,mu_ui,lam_caiso_ui,lam_wecc_ui])
-    problem_ui = mo.vstack([params_ui,_tabs])
-    return params_ui, problem_ui
+    return (params_ui,)
 
 
 @app.cell
@@ -317,13 +303,13 @@ def _(
     evaluate,
     g_caiso,
     g_wecc,
+    get_result,
     np,
-    result,
     state_groups,
 ):
     L, energy_dev, power_dev, shape_dev = evaluate(
-        result["scale"],
-        result["offset"],
+        get_result()["scale"],
+        get_result()["offset"],
         X,
         D,
         state_groups,
@@ -342,10 +328,10 @@ def _(
     X,
     county_names,
     evaluation_ui,
+    get_result,
     mo,
     pd,
     plot_options,
-    result,
     state_groups,
     state_ndx,
     state_ui,
@@ -362,17 +348,18 @@ def _(
         **plot_options, ax=_plot
     )
     _plot.legend(["New", "Old"])
-    solution_ui = mo.ui.tabs(
+    solution_ui = mo.accordion(
         {
             "Evaluation": evaluation_ui,
             "Load": mo.mpl.interactive(_plot),
             "Scale": pd.DataFrame(
-                data=[result["scale"][county_ids]], columns=county_names
+                data=[get_result()["scale"][county_ids]], columns=county_names
             ).T.plot(kind="bar", ylabel="Power scale [pu]", legend=None, figsize=plot_options["figsize"]),
             "Offset": pd.DataFrame(
-                data=[result["offset"][county_ids]], columns=county_names
+                data=[get_result()["offset"][county_ids]], columns=county_names
             ).T.plot(kind="bar", ylabel="Power offset [MW]", legend=None, figsize=plot_options["figsize"]),
-        }
+        },
+        multiple=True,
     )
     return county_ids, solution_ui
 
@@ -393,9 +380,20 @@ def _(
     states,
     year_ui,
 ):
-    evaluation_ui = mo.ui.tabs(
+    evaluation_ui = mo.accordion(
         {
-            "Energy": pd.DataFrame(
+            "*Shape* ($\gamma$)": pd.DataFrame(
+                data=[shape_dev / 1e3],
+                index=[f"{month_ui.selected_key} {year_ui.value}"],
+                columns=["WECC"],
+            ).plot(
+                kind="bar",
+                ylabel="Shape Change (GW)",
+                figsize=plot_options["figsize"],
+                grid=True,
+                legend=None,
+            ),
+            "*Energy* ($\mu$)": pd.DataFrame(
                 data=[energy_dev / np.array(list(E_state.values())) * 100],
                 columns=states,
             ).T.plot(
@@ -405,9 +403,9 @@ def _(
                 figsize=plot_options["figsize"],
                 legend=None,
             ),
-            "Power": pd.DataFrame(
-                data=[power_dev / np.array([P_caiso,P_wecc]) * 100],
-                columns=["CAISO","WECC"],
+            "*Power* ($\lambda$)": pd.DataFrame(
+                data=[power_dev / np.array([P_caiso, P_wecc]) * 100],
+                columns=["CAISO", "WECC"],
             ).T.plot(
                 kind="bar",
                 ylabel="Power deviation (%)",
@@ -415,8 +413,8 @@ def _(
                 figsize=plot_options["figsize"],
                 legend=None,
             ),
-            "Shape": pd.DataFrame(data=[shape_dev/1e3],index=[f"{month_ui.selected_key} {year_ui.value}"],columns=["WECC"]).plot(kind="bar",ylabel="Shape Change (GW)",figsize=plot_options["figsize"],grid=True,legend=None),
-        }
+        },
+        multiple=True,
     )
     return (evaluation_ui,)
 
@@ -431,33 +429,68 @@ def _(
     problem_ui,
     solution_ui,
 ):
-    mo.ui.tabs({
-        "Inputs":input_ui,
-        "Problem": problem_ui,
-        "Solution": mo.vstack([params_ui,solution_ui]),
-        "Parameters": parameters_ui,
-        "Output": output_ui,
-    })
+    mo.accordion({
+        "**Inputs**":input_ui,
+        "**Problem**": problem_ui,
+        "**Parameters**": parameters_ui,
+        "**Solution**": mo.vstack([params_ui,solution_ui]),
+        "**Output**": output_ui,
+    },multiple=True)
     return
 
 
 @app.cell
-def _(get_gamma, get_lam, get_mu, mo):
-    # gamma=get_gamma(),
-    # mu=np.array(get_mu()),
-    # lam=np.array(get_lam()),
-    # eps=1e-6,
+def _(mo):
+    get_result,set_result = mo.state(None)
+    return get_result, set_result
 
-    parameters_ui = mo.md(f"""
-    $\gamma = {get_gamma()}$
 
-    $\mu = {get_mu()}$
-
-    $\lambda = {get_lam()}$
-
-    $\epsilon = 10^{{-6}}$
-    """)
-    return (parameters_ui,)
+@app.cell
+def _(
+    D,
+    X,
+    calibrate,
+    dt_month,
+    energy_target,
+    g_caiso,
+    g_wecc,
+    get_gamma,
+    get_lam,
+    get_mu,
+    get_result,
+    mo,
+    np,
+    peak_target,
+    set_result,
+    state_groups,
+    state_ndx,
+):
+    E_state = {
+        state_ndx[x]: y
+        for x, y in energy_target.loc[dt_month].to_dict().items()
+    }
+    P_caiso, P_wecc = peak_target.loc[dt_month].values
+    with mo.capture_stdout() as _buf:
+        with mo.status.spinner("Solving problem"):
+            result = get_result()
+            set_result(calibrate(
+                X,
+                D,
+                state_groups,
+                np.array(g_caiso),
+                np.array(g_wecc),
+                E_state,
+                P_caiso,
+                P_wecc,
+                gamma=get_gamma(),
+                mu=np.array(get_mu()),
+                lam=np.array(get_lam()),
+                eps=1e-6,
+                parameters=["gamma","mu","lam"],
+                problem=None if result is None else result["problem"],
+            ))
+    stdout = _buf.getvalue()
+    return E_state, P_caiso, P_wecc, stdout
 
 
 @app.cell
@@ -476,6 +509,7 @@ def _():
     import marimo as mo
     import pandas as pd
     import calendar
+    import json
     from fips.counties import Counties
     from load_calibrate import calibrate, evaluate
     import numpy as np
@@ -485,7 +519,17 @@ def _():
         "xlabel": "Date/Time (UTC)",
         "ylabel": "Power (GW)"
     }
-    return Counties, calendar, calibrate, evaluate, mo, np, pd, plot_options
+    return (
+        Counties,
+        calendar,
+        calibrate,
+        evaluate,
+        json,
+        mo,
+        np,
+        pd,
+        plot_options,
+    )
 
 
 if __name__ == "__main__":

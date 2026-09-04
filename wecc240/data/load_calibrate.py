@@ -126,6 +126,7 @@ def calibrate(
     eps:float=1e-6,
     options:dict=cvx_options(),
     parameters:list[str]=None,
+    problem:cp.Problem=None,
     ) -> [float,cp.Problem]:
     """Solve the sum/max target problem using scale and offset
 
@@ -190,6 +191,19 @@ def calibrate(
     The hyper-parameter `eps` is used to guarantee a unique solution when one
     or more zero or constant columns are present in `X_raw`. 
     """
+
+    if not problem is None:
+      get_parameter(problem,"gamma").value = np.array([gamma])
+      get_parameter(problem,"mu").value = np.array(mu)
+      get_parameter(problem,"lam").value = np.array(lam)
+      value = problem.solve()
+
+      return {
+        "scale": get_variable(problem,"s"),
+        "offset": get_variable(problem,"b") * X_raw.max(),
+        "value": value,
+        "problem": problem,
+        }
 
     T, n = X_raw.shape
 
