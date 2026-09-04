@@ -1,13 +1,13 @@
 import marimo
 
 __generated_with = "0.23.14"
-app = marimo.App(width="medium")
+app = marimo.App(width="full")
 
 
 @app.cell
 def _(pd):
     # input data
-    county_total = pd.read_csv("county_total.csv",index_col=[0],parse_dates=[0])
+    county_total = pd.read_csv("county_total.csv.gz",index_col=[0],parse_dates=[0])
     county_dg = pd.read_csv("county_dg.csv",index_col=[0],parse_dates=[0])
     energy_target = pd.read_csv("energy_target.csv",index_col=[0],parse_dates=[0])
     peak_target = pd.read_csv("peak_target.csv",index_col=[0],parse_dates=[0])
@@ -154,15 +154,27 @@ def _(mo, state_groups):
     get_gamma,set_gamma = mo.state(1.0)
     get_mu,set_mu = mo.state([1.0]*len(state_groups))
     get_lam,set_lam = mo.state([1.0]*2)
-    return get_gamma, get_lam, get_mu, set_gamma, set_lam, set_mu
+    get_eps,set_eps = mo.state(1e-6)
+    return (
+        get_eps,
+        get_gamma,
+        get_lam,
+        get_mu,
+        set_eps,
+        set_gamma,
+        set_lam,
+        set_mu,
+    )
 
 
 @app.cell
 def _(
+    get_eps,
     get_gamma,
     get_lam,
     get_mu,
     mo,
+    set_eps,
     set_gamma,
     set_lam,
     set_mu,
@@ -218,17 +230,37 @@ def _(
             debounce=True,
             on_change=_update_lam_wecc
         )
-    return gamma_ui, lam_caiso_ui, lam_wecc_ui, mu_ui
+    eps_ui = mo.ui.slider(
+        label=r"$\epsilon$",
+        steps=_range,
+        value=get_eps(),
+        show_value=True,
+        debounce=True,
+        on_change=set_eps,
+    )
+    return eps_ui, gamma_ui, lam_caiso_ui, lam_wecc_ui, mu_ui
 
 
 @app.cell
-def _(get_gamma, get_lam, get_mu, json, mo, set_gamma, set_lam, set_mu):
+def _(
+    get_eps,
+    get_gamma,
+    get_lam,
+    get_mu,
+    json,
+    mo,
+    set_eps,
+    set_gamma,
+    set_lam,
+    set_mu,
+):
     def save_parameters(*args):
         with open("parameters.json","w") as fh:
             json.dump({
                 "gamma": get_gamma(),
                 "mu": get_mu(),
                 "lambda": get_lam(),
+                "epsilon": get_eps(),
             },fh)
 
     def load_parameters(*args):
@@ -237,13 +269,15 @@ def _(get_gamma, get_lam, get_mu, json, mo, set_gamma, set_lam, set_mu):
             set_gamma(params["gamma"])
             set_mu(params["mu"])
             set_lam(params["lambda"])
-    
+            set_eps(params["epsilon"])
+
     save_ui = mo.ui.button(label="Save",on_click=save_parameters)
     load_ui = mo.ui.button(label="Load",on_click=load_parameters)
     parameters_ui = mo.hstack([
         mo.md(f"$\gamma = {get_gamma()}$"),
         mo.md(f"$\mu = {get_mu()}$"),
         mo.md(f"$\lambda = {get_lam()}$"),
+        mo.md(f"$\epsilon = {get_eps()}$"),
         save_ui,
         load_ui,
     ])
@@ -281,8 +315,8 @@ def _(
 
 
 @app.cell
-def _(gamma_ui, lam_caiso_ui, lam_wecc_ui, mo, mu_ui):
-    params_ui = mo.hstack([gamma_ui,mu_ui,lam_caiso_ui,lam_wecc_ui])
+def _(eps_ui, gamma_ui, lam_caiso_ui, lam_wecc_ui, mo, mu_ui):
+    params_ui = mo.hstack([gamma_ui,mu_ui,lam_caiso_ui,lam_wecc_ui,eps_ui])
     return (params_ui,)
 
 
@@ -450,10 +484,12 @@ def _(
     D,
     X,
     calibrate,
+    cvx_options,
     dt_month,
     energy_target,
     g_caiso,
     g_wecc,
+    get_eps,
     get_gamma,
     get_lam,
     get_mu,
@@ -485,9 +521,10 @@ def _(
                 gamma=get_gamma(),
                 mu=np.array(get_mu()),
                 lam=np.array(get_lam()),
-                eps=1e-6,
+                eps=get_eps(),
                 parameters=["gamma","mu","lam"],
                 problem=None if result is None else result["problem"],
+                options=cvx_options(verbose=True)
             ))
     stdout = _buf.getvalue()
     return E_state, P_caiso, P_wecc, stdout
@@ -511,7 +548,7 @@ def _():
     import calendar
     import json
     from fips.counties import Counties
-    from load_calibrate import calibrate, evaluate
+    from load_calibrate import calibrate, evaluate, cvx_options
     import numpy as np
     plot_options = {
         "figsize": (10,7),
@@ -523,6 +560,7 @@ def _():
         Counties,
         calendar,
         calibrate,
+        cvx_options,
         evaluate,
         json,
         mo,

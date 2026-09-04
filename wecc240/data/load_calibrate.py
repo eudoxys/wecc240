@@ -261,7 +261,7 @@ def calibrate(
     drive = lam[0] * (g_caiso @ b) + lam[1] * (g_wecc_only @ b)
 
     # Well-posedness ridge
-    eps = cp.Constant(eps,name='eps')
+    eps = constant_or_parameter(data=np.array([eps]),name='eps',parameters=parameters,nonneg=True)
     ridge = eps * (cp.sum_squares(s - 1) + cp.sum_squares(b))
 
     # EDIT: gamma is passed in and scaled by size of data
