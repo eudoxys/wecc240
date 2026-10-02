@@ -1,5 +1,10 @@
+"""PSSE Column Numbers for data classes
+
+See http://home.engineering.iastate.edu/~jdm/OldClasses/ee303_spring2019/Project%20Instructions%20FinalPSSE34%20ver4.pdf for details.
+"""
+
 class bus:
-    # see http://home.engineering.iastate.edu/~jdm/OldClasses/ee303_spring2019/Project%20Instructions%20FinalPSSE34%20ver4.pdf
+    """PSSE bus column numbers"""
     I = 0
     NAME = 1
     BASEKV = 2
@@ -16,6 +21,7 @@ class bus:
     _SIZE = 13
 
 class branch:
+    """PSSE branch column numbers"""
     I = 0
     J = 1
     CKT = 2
@@ -53,6 +59,7 @@ class branch:
     _SIZE = 34
 
 class load:
+    """PSSE load column numbers"""
     I = 0
     ID = 1
     STAT = 2
@@ -73,6 +80,7 @@ class load:
     _SIZE = 17
 
 class fixed_shunt:
+    """PSSE fixed shunt column numbers"""
     I = 0
     ID = 1
     STATUS = 2
@@ -81,6 +89,7 @@ class fixed_shunt:
     _SIZE = 5
 
 class switched_shunt:
+    """PSSE switched shunt column numbers"""
     I = 0
     MODSW = 1
     ADJM = 2
@@ -111,6 +120,7 @@ class switched_shunt:
     _SIZE = 27
     
 class gen:
+    """PSSE generator column numbers"""
     I = 0
     ID = 1
     PG = 2
@@ -143,6 +153,7 @@ class gen:
     _SIZE = 29
 
 class transformer:
+    """PSSE transformer column numbers"""
     I = 0
     J = 1
     K = 2
