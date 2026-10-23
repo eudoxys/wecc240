@@ -95,3 +95,7 @@ Integration," 2020 IEEE/PES Transmission and Distribution Conference and
 Exposition (T&D), Chicago, IL, USA, 2020, pp. 1-5, doi:
 10.1109/TD39804.2020.9299666. URL:
 https://ieeexplore.ieee.org/abstract/document/9299666.
+
+# Acknowledgments
+
+- This material is based on work supported by the U.S. Department of Energy’s Office of Electricity through a grant from the Grid Controls and Communications Division
