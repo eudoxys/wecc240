@@ -2,6 +2,8 @@ marimo
 numpy
 pandas
 
+tsgam_estimator @ git+https://github.com/nimish/estimator
+
 eia @ git+https://github.com/eudoxys/eia
 fips @ git+https://github.com/eudoxys/fips
 geohash @ git+https://github.com/eudoxys/geohash

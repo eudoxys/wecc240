@@ -375,17 +375,30 @@ def _(
         for n, x in enumerate(state_groups[state_ndx[state_ui.value]])
         if x == 1
     ]
-    _plot = (pd.DataFrame(L[:, county_ids]).sum(axis=1) / 1e3).plot(
-        **plot_options
-    )
-    (pd.DataFrame(X[:, county_ids]).sum(axis=1) / 1e3).plot(
-        **plot_options, ax=_plot
-    )
-    _plot.legend(["New", "Old"])
+
+    _state = (pd.DataFrame(L[:, county_ids]).sum(axis=1) / 1e3).plot(**plot_options)
+    (pd.DataFrame(X[:, county_ids]).sum(axis=1) / 1e3).plot(**plot_options, ax=_state)
+    _state.legend(["New", "Old"])
+    _state.set_title(state_ui.value)
+
+    # _wecc = (pd.DataFrame(L).sum(axis=1) / 1e3).plot(**plot_options)
+    # (pd.DataFrame(X[:, county_ids]).sum(axis=1) / 1e3).plot(**plot_options, ax=_wecc)
+    # _wecc.legend(["New", "Old"])
+    # _wecc.set_title(state_ui.value)
+
+    # _caiso = (pd.DataFrame(L[:, counties_caiso]).sum(axis=1) / 1e3).plot(**plot_options)
+    # (pd.DataFrame(X[:, county_ids]).sum(axis=1) / 1e3).plot(**plot_options, ax=_caiso)
+    # _caiso.legend(["New", "Old"])
+    # _caiso.set_title(state_ui.value)
+
     solution_ui = mo.accordion(
         {
             "Evaluation": evaluation_ui,
-            "Load": mo.mpl.interactive(_plot),
+            "Load": mo.ui.tabs({
+                # "WECC":mo.mpl.interactive(_wecc),
+                # "CAISO":mo.mpl.interactive(_caiso),
+                "State":mo.mpl.interactive(_state),
+            }),
             "Scale": pd.DataFrame(
                 data=[get_result()["scale"][county_ids]], columns=county_names
             ).T.plot(kind="bar", ylabel="Power scale [pu]", legend=None, figsize=plot_options["figsize"]),

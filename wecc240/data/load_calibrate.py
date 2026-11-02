@@ -112,7 +112,7 @@ def constant_or_parameter(name:str,data:np.array,parameters:list[str],nonneg,**k
         return cp.Parameter(shape=data.shape,value=data,name=name,nonneg=nonneg,**kwargs)
     return cp.Constant(data,name=name,**kwargs)
 
-def calibrate(
+def calibrate_v1(
     X_raw: np.array,
     D_raw: np.array,
     state_groups: dict,
@@ -186,18 +186,317 @@ def calibrate(
 
     - `mu`: controls how strongly the solver recovers `E_target`.
 
-    - `lam`: controls how strongly the solver recover `P_target`.
+    - `lam`: controls how strongly the solver recovers `P_target`.
 
     The hyper-parameter `eps` is used to guarantee a unique solution when one
     or more zero or constant columns are present in `X_raw`. 
     """
 
-    if not problem is None:
-      get_parameter(problem,"gamma").value = np.array([gamma])
-      get_parameter(problem,"mu").value = np.array(mu)
-      get_parameter(problem,"lam").value = np.array(lam)
+    if not problem is None: # parametric run
+
+      try:
+        get_parameter(problem,"gamma").value = np.array([gamma])
+      except:
+        pass
+      
+      try:
+        get_parameter(problem,"mu").value = np.array(mu)
+      except:
+        pass
+      
+      try:
+        get_parameter(problem,"lam").value = np.array(lam)
+      except:
+        pass
+      
+      try:
+        get_parameter(problem,"eps").value = np.array(eps)
+      except:
+        pass
+      
       value = problem.solve()
 
+      if "verbose" in options and options["verbose"]:
+
+        try:
+          print(f"{gamma=}={get_parameter(problem,'gamma').value}")
+        except:
+          pass
+        
+        try:
+          print(f"{mu=}={get_parameter(problem,'mu').value}")
+        except:
+          pass
+        
+        try:
+          print(f"{lam=}={get_parameter(problem,'lam').value}")
+        except:
+          pass
+        
+        try:
+          print(f"{eps=}={eps.get_parameter(problem,'eps').valuevalue}")
+        except:
+          pass
+        print("Problem status:", problem.status)
+        if problem.status not in ("infeasible", "unbounded"):
+          print(f"Value: {round(value,3)}")
+          print(f"Scale:\n{get_variable(problem,'s').round(3)}")
+          print(f"Offset:\n{get_variable(problem,'b').round(3)}")
+      
+      return {
+        "scale": get_variable(problem,"s"),
+        "offset": get_variable(problem,"b") * X_raw.max(),
+        "value": value,
+        "problem": problem,
+        }
+
+    if parameters is None:
+        parameters = []
+
+    T, n = X.shape
+    
+    a = X.sum(axis=0) # column energy weights (for energy term)
+    col_min = X.min(axis=0) # per-column minima (for output nonneg reduction)
+    
+    # Fixed [0, 1] weights from the original aggregate input, normalized to sum to one.
+    input_power = X.sum(axis=1)
+    input_range = np.ptp(input_power)
+
+    if input_range > np.finfo(float).eps:
+        power_weights = (input_power - input_power.min()) / input_range
+        power_weights = power_weights / power_weights.sum()
+    else:
+        power_weights = np.full(T, 1.0 / T)
+
+    # Decision variables (LOAD only)
+    # EDIT: added names for variables
+    s = cp.Variable(n, nonneg=True, name='s')   # per-unit load scalings
+    b = cp.Variable(n, name='b')                # per-unit load offsets
+
+    # Output signal: column j is s_j * X[:,j] + b_j (broadcast over rows)
+    # EDIT: added "C" to reshape per warning from cvxpy
+    Y = cp.multiply(X, cp.reshape(s, (1, n), "C")) + cp.reshape(b, (1, n), "C")
+
+    output_power = cp.sum(Y, axis=1) # aggregate OUTPUT profile (affine)
+    peak = cp.max(output_power) # max row-sum of OUTPUT (convex)
+    power_score = (power_weights @ output_power) / P_target
+    energy = cp.sum(Y) # total energy of OUTPUT (affine)
+
+    # Shape fidelity: magnitude-aware, keeps each output column near its input
+    shape_dev = cp.sum_squares(Y - X) # == ||X diag(s) + 1 b^T - X||_F^2
+
+    # Weights
+
+    # EDIT: gamma is passed in and scaled by size of data
+    # shape fidelity (anti-crushing) -- primary regularizer
+    if gamma is None:
+        gamma = n * T
+    else:
+        gamma = constant_or_parameter(data=np.array([gamma]), name='gamma', parameters=parameters, nonneg=True) * n * T
+
+    # EDIT: mu is passed in as ((len(state_groups),1) and scaled by the number of rows
+    # energy fidelity (mu -> inf recovers hard energy equality)
+    if mu is None:
+        mu = {k:T for k in state_groups}
+    else:
+        mu = constant_or_parameter(data=mu,name='mu',parameters=parameters,nonneg=True) * T
+
+    # EDIT: lam is passed in as (2,) array for CAISO and WECC and scaled by the number of columns
+    # input-weighted upper-tail drive
+    if lam is None:
+        lam = [n,n]
+    else:
+        lam = constant_or_parameter(data=lam,name='lam',parameters=parameters,nonneg=True) * n
+    g_wecc_only = g_wecc - g_caiso
+    drive = lam[0] * (g_caiso @ b) + lam[1] * (g_wecc_only @ b)
+
+    # EDIT: eps is passed in
+    # symmetric well-posedness ridge; set 0.0 for clean data
+    eps = constant_or_parameter(data=np.array([eps]),name='eps',parameters=parameters,nonneg=True)
+
+    objective = cp.Minimize(
+        gamma * shape_dev
+        + mu * cp.square(energy - E_target)
+        - lam * power_score
+        + eps * (cp.sum_squares(s - 1) + cp.sum_squares(b))
+        )
+
+    # --- Constraints -------------------------------------------------------------
+    constraints = [
+        peak <= P_target, # power ceiling
+        cp.multiply(s, col_min) + b >= 0, # output nonnegativity (reduced form)
+        # equivalent full form: Y >= 0
+        ]
+
+    problem = cp.Problem(objective, constraints)
+    assert problem.is_dcp(), "ERROR: problem is not DCP"
+    # EDIT: save value for return
+    value = problem.solve(**options)
+
+    # diagnostic output if cvx_options includes `verbose=True`
+    if "verbose" in options and options["verbose"]:
+        target_energy = sum(x for x in E_target.values())
+        target_power = P_caiso + P_wecc
+        print(f"{gamma=}={gamma.value}")
+        print(f"{mu=}={mu.value}")
+        print(f"{lam=}={lam.value}")
+        print(f"{eps=}={eps.value}")
+        if problem.status not in ("infeasible", "unbounded"):
+            L_val = X * s.value[None, :] + b.value[None, :] # shaped load (normalized)
+            N_val = L_val - D # shaped net load
+            L_raw = c * L_val
+            N_raw = c * N_val
+            ach_P_caiso = c * np.max((X * g_caiso[None, :]) @ s.value + (g_caiso @ b.value) - (D @ g_caiso))
+            ach_P_wecc = c * np.max((X * g_wecc[None, :]) @ s.value + (g_wecc @ b.value) - (D @ g_wecc))
+            print("CAISO net-load peak:", ach_P_caiso, " target:", P_caiso_raw, " tight?", (constraints[0].dual_value or 0) > 1e-9)
+            print("WECC net-load peak:", ach_P_wecc, " target:", P_wecc_raw, " tight?", (constraints[1].dual_value or 0) > 1e-9)
+            print("load min :", L_raw.min(), "(should be >= 0)")
+            print("net-load min:", N_raw.min(), "(may be < 0 under high DG)")
+            for k, g in state_groups.items():
+                E_ach = c * ((g * a) @ s.value + T * (g @ b.value) - (g @ d))
+                print(f" {k:>6d} net-load energy: {E_ach:12.3f}"
+                  f" target {E_state[k]:12.3f} miss {E_ach - E_state[k]:+.3f}")
+        else:
+            print("Problem status:", problem.status)
+
+    return {
+        "scale": s.value,
+        "offset": b.value * c,
+        "value": value,
+        "problem": problem,
+        }
+
+def calibrate_v0(
+    X_raw: np.array,
+    D_raw: np.array,
+    state_groups: dict,
+    g_caiso, g_wecc: np.array,
+    E_state: dict,
+    P_caiso_raw, P_wecc_raw: float,
+    *,
+    gamma:float=None,
+    mu:float=None,
+    lam:float=None,
+    eps:float=1e-6,
+    options:dict=cvx_options(),
+    parameters:list[str]=None,
+    problem:cp.Problem=None,
+    ) -> [float,cp.Problem]:
+    """Solve the sum/max target problem using scale and offset
+
+    Arguments
+    ---------
+    
+    - `X_raw`: (T, n) nonnegative simulated LOAD per unit (controllable)
+    
+    - `D_raw`: (T, n) nonnegative fixed distributed generation per unit
+      (locked), e.g., `load = X_raw - D_raw`
+    
+    - `state_groups`: dict {state: g_k} each g_k in [0,1]^n, sum_k g_k = 1
+      (partition) boolean for counties (typically); fractional for nodes
+    
+    - `E_state` : dict {state: E_k_raw} per-state NET-LOAD energy targets
+    
+    - `g_caiso, g_wecc` : (n,) in [0,1] fractional membership (g_caiso <=
+      g_wecc)
+    
+    - `P_caiso_raw, P_wecc_raw` : NET-LOAD peak power target
+
+    - `gamma`: shape fidelity (anti-crushing) -- primary regularizer
+    
+    - `mu`: (n,) `E_target` objective hyperparameters (recovers `E_target`
+      equalities for states) 
+    
+    - `lam`: (2,) `P_target` objective hyperparameters for WECC and CAISO
+      (presses `P_target` to max)
+    
+    - `eps`: small symmetric reduce to guarantee a unique solution when zero
+      or constant columns are present
+    
+    - `options`: CVX options (see `cvx_options`)
+
+    - `parameters`: list of constant to parameterize
+
+    Returns
+    -------
+
+    - `dict`: result of optimization
+        - `scale`: the scale value
+        - `offset`: the offset value
+        - `value`: the optimization cost function value
+        - `problem`: the optimization problem object
+
+    Description
+    -----------
+
+    This solver scales and offsets the columns of the array `X_raw` such that
+    the total of the columns match `E_state` and the maximum across the rows
+    of the sums of the rows matches `P_caiso_raw` and P_wecc_raw`. Since
+    exact matching of both is typically infeasible, the solver uses the
+    hyper-parameters `mu` and `lam` to prioritize these against the fidelity
+    to the overall shape of `X`, which is controlled by the primary
+    regularizer `gamma`. The hyper-parameters `mu` and `lam` work as
+    follows.
+
+    - `mu`: controls how strongly the solver recovers `E_target`.
+
+    - `lam`: controls how strongly the solver recovers `P_target`.
+
+    The hyper-parameter `eps` is used to guarantee a unique solution when one
+    or more zero or constant columns are present in `X_raw`. 
+    """
+
+    if not problem is None: # parametric run
+
+      try:
+        get_parameter(problem,"gamma").value = np.array([gamma])
+      except:
+        pass
+      
+      try:
+        get_parameter(problem,"mu").value = np.array(mu)
+      except:
+        pass
+      
+      try:
+        get_parameter(problem,"lam").value = np.array(lam)
+      except:
+        pass
+      
+      try:
+        get_parameter(problem,"eps").value = np.array(eps)
+      except:
+        pass
+      
+      value = problem.solve()
+
+      if "verbose" in options and options["verbose"]:
+
+        try:
+          print(f"{gamma=}={get_parameter(problem,'gamma').value}")
+        except:
+          pass
+        
+        try:
+          print(f"{mu=}={get_parameter(problem,'mu').value}")
+        except:
+          pass
+        
+        try:
+          print(f"{lam=}={get_parameter(problem,'lam').value}")
+        except:
+          pass
+        
+        try:
+          print(f"{eps=}={eps.get_parameter(problem,'eps').valuevalue}")
+        except:
+          pass
+        print("Problem status:", problem.status)
+        if problem.status not in ("infeasible", "unbounded"):
+          print(f"Value: {round(value,3)}")
+          print(f"Scale:\n{get_variable(problem,'s').round(3)}")
+          print(f"Offset:\n{get_variable(problem,'b').round(3)}")
+      
       return {
         "scale": get_variable(problem,"s"),
         "offset": get_variable(problem,"b") * X_raw.max(),
@@ -290,7 +589,7 @@ def calibrate(
     ]
 
     problem = cp.Problem(objective, constraints)
-    assert problem.is_dcp(), "ERROR: problem is no DCP"
+    assert problem.is_dcp(), "ERROR: problem is not DCP"
     # EDIT: save value for return
     value = problem.solve(**options)
 
@@ -298,6 +597,10 @@ def calibrate(
     if "verbose" in options and options["verbose"]:
         target_energy = sum(x for x in E_target.values())
         target_power = P_caiso + P_wecc
+        print(f"{gamma=}={gamma.value}")
+        print(f"{mu=}={mu.value}")
+        print(f"{lam=}={lam.value}")
+        print(f"{eps=}={eps.value}")
         if problem.status not in ("infeasible", "unbounded"):
             L_val = X * s.value[None, :] + b.value[None, :] # shaped load (normalized)
             N_val = L_val - D # shaped net load
@@ -322,6 +625,8 @@ def calibrate(
         "value": value,
         "problem": problem,
         }
+
+calibrate = calibrate_v1
 
 def get_scalar(
     problem:cp.Problem,
@@ -431,7 +736,7 @@ if __name__ == "__main__":
         )
     
     # read county-level total loads
-    county_total = pd.read_csv("county_total.csv", index_col=[0], parse_dates=[0])
+    county_total = pd.read_csv("county_total.csv.gz", index_col=[0], parse_dates=[0])
     county_dg = pd.read_csv("county_dg.csv", index_col=[0], parse_dates=[0])
     assert set(county_total.columns) == set(county_dg.columns), "total and DG counties do not match"
     county_ndx = {x:n for n,x in enumerate(county_total.columns)} # index into load data columns
