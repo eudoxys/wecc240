@@ -982,6 +982,297 @@ def read_node_calibration(
 
     return node_calibration
 
+#
+# EIA-930 balancing authority load disaggregation (ba_load, county_ba,
+# county_node_factor, county_ba_load, node_ba_load)
+#
+LOADS_COMMIT = "9341b1342fb64d23db0e169017fee6fa11821e46"
+"""`eudoxys/loads` commit from which the BA disaggregation inputs are read"""
+
+LOADS_URL = f"https://raw.githubusercontent.com/eudoxys/loads/{LOADS_COMMIT}/loads/"
+"""URL of the `eudoxys/loads` package folder at `LOADS_COMMIT`"""
+
+def read_ba_load(*,
+    refresh:bool|str=False,
+    ) -> pd.DataFrame:
+    """Read EIA-930 balancing authority hourly demand
+
+    Arguments
+    ---------
+    - `refresh`: force refresh of data file from `eudoxys/loads`
+
+    Returns
+    -------
+    - `pandas.DataFrame`: contents of the data file
+      - `timestamp`: UTC date/time of the beginning of the hour
+      - ...: EIA-930 BA code demand (MW)
+
+    Description
+    -----------
+    The source is the cleaned EIA-930 "Demand (MW) (Adjusted)" series of the
+    28 US Western Interconnection BAs that report demand, from
+    `loads/_test/data/WECC_BA_hourly_load_2018-2022.csv` in `eudoxys/loads`
+    (see that folder's `README.md` for the cleaning and gap filling). The
+    source is UTC hour-ending; it is converted to UTC hour-beginning and
+    reindexed to `hour_range`, so the first 8 hours of 2018 are `NaN`.
+    BC Hydro, AESO and CFE report no demand to EIA-930 and are not included.
+    """
+    filename = "ba_load.csv.gz"
+    if os.path.exists(filename) and not refresh:
+        ba_load = pd.read_csv(filename,index_col=[0],parse_dates=[0])
+    else:
+        ba_load = pd.read_csv(LOADS_URL+"_test/data/WECC_BA_hourly_load_2018-2022.csv")
+        ba_load.index = pd.DatetimeIndex(
+            pd.to_datetime(ba_load["utc_hour_ending"],utc=True) - pd.Timedelta(hours=1),
+            name="timestamp",
+            )
+        ba_load = ba_load.drop(["utc_hour_ending","pst_hour_ending"],axis=1)
+        ba_load = ba_load.reindex(hour_range).rename_axis("timestamp")
+        ba_load.to_csv(filename,index=True,header=True,compression="gzip")
+    return ba_load.reset_index()
+
+def read_county_ba(*,
+    refresh:bool|str=False,
+    ) -> pd.DataFrame:
+    """Read county balancing authority participation factors
+
+    Arguments
+    ---------
+    - `refresh`: force refresh of data file from `eudoxys/loads`
+
+    Returns
+    -------
+    - `pandas.DataFrame`: contents of the data file
+      - `county_st`: county/state name
+      - `ba`: EIA BA code
+      - `factor`: fraction of the county's load served by the BA (the
+        factors of a county sum to 1)
+      - `method`: `eia861` (fitted to EIA-861 2018 utility sales),
+        `override` (manual correction), or `state` (state BA shares)
+
+    Description
+    -----------
+    Copied from `loads/wecc/county_ba.csv` in `eudoxys/loads`, which is built
+    by `loads/wecc/county_ba.py` from the EIA-861 2018 service territory and
+    retail sales data. BA codes not in EIA-930 (e.g., `SWPP`) can appear for
+    border counties.
+    """
+    filename = "county_ba.csv"
+    if os.path.exists(filename) and not refresh:
+        county_ba = pd.read_csv(filename)
+    else:
+        county_ba = pd.read_csv(LOADS_URL+"wecc/county_ba.csv")
+        county_ba.to_csv(filename,index=False,header=True)
+    return county_ba
+
+def read_county_node_factor(*,
+    refresh:bool|str=False,
+    ) -> pd.DataFrame:
+    """Read county-to-node allocation factors
+
+    Arguments
+    ---------
+    - `refresh`: force refresh of data file from `eudoxys/loads`
+
+    Returns
+    -------
+    - `pandas.DataFrame`: contents of the data file
+      - `county_st`: county/state name
+      - `node`: node geohash
+      - `factor`: fraction of the county's load allocated to the node (the
+        factors of a county sum to 1)
+      - `method`: `bus` (county split among its in-county load busses in
+        proportion to their load in the WECC 240 case) or `nearest` (county
+        allocated entirely to its nearest load node in `county_node_map.csv`)
+
+    Description
+    -----------
+    Copied from `loads/wecc/node_estimate_cf.csv` in `eudoxys/loads` (built
+    by `loads/wecc/node_estimate.py`), with column `cf` renamed `factor`.
+    """
+    filename = "county_node_factor.csv"
+    if os.path.exists(filename) and not refresh:
+        county_node_factor = pd.read_csv(filename)
+    else:
+        county_node_factor = pd.read_csv(LOADS_URL+"wecc/node_estimate_cf.csv")\
+            .rename({"cf":"factor"},axis=1)
+        county_node_factor.to_csv(filename,index=False,header=True)
+    return county_node_factor
+
+def read_county_estimate(*,
+    net:bool=True,
+    ) -> pd.DataFrame:
+    """Read the `eudoxys/loads` county hourly load estimate
+
+    Arguments
+    ---------
+    - `net`: subtract the county rooftop PV (`county_dg_scaled.csv.gz`) from
+      the gross load estimate, clipped at zero
+
+    Returns
+    -------
+    - `pandas.DataFrame`: county load (not cached)
+      - `timestamp`: UTC date/time of the beginning of the hour
+      - ...: county/state name load (MW)
+
+    Description
+    -----------
+    Reads `loads/wecc/wecc_estimate.csv.gz` (gross load, including load
+    served by rooftop PV) and, if `net`, `loads/wecc/county_dg_scaled.csv.gz`
+    (rooftop PV scaled to EIA small-scale solar estimates; counties missing
+    from it have no DG) from `eudoxys/loads` at `LOADS_COMMIT`.
+    """
+    gross = pd.read_csv(LOADS_URL+"wecc/wecc_estimate.csv.gz",index_col=[0],parse_dates=[0]).copy()
+    if not net:
+        return gross.rename_axis("timestamp").reset_index()
+    dg = pd.read_csv(LOADS_URL+"wecc/county_dg_scaled.csv.gz",index_col=[0],parse_dates=[0])
+    dg = dg.reindex(index=gross.index,columns=gross.columns).fillna(0.0).copy()
+    return (gross - dg.abs()).clip(lower=0.0).rename_axis("timestamp").reset_index()
+
+def read_county_ba_load(*,
+    refresh:bool|str=False,
+    net:bool=True,
+    precision:int=PRECISION,
+    ) -> pd.DataFrame:
+    """Read county hourly load disaggregated from EIA-930 BA demand
+
+    Arguments
+    ---------
+    - `refresh`: force refresh of data file (`"all"` forces refresh of
+      dependencies)
+
+    - `net`: use the county net load estimate (gross minus rooftop PV) to
+      weight the counties (see `read_county_estimate`); only effective when
+      creating or refreshing the data file
+
+    - `precision`: data rounding precision
+
+    Returns
+    -------
+    - `pandas.DataFrame`: contents of the data file
+      - `timestamp`: UTC date/time of the beginning of the hour
+      - ...: county/state name load (MW)
+
+    Description
+    -----------
+    Each BA's EIA-930 demand $D_b(t)$ is split among the counties it serves
+    in proportion to the hourly contribution of each county's estimated load
+    $L_c(t)$ to the BA, i.e., $L_c(t) f_{cb}$, where $f_{cb}$ is the county's
+    BA participation factor (`read_county_ba`). The county load is the sum of
+    its BA shares:
+
+    $$X_c(t) = \\sum_b D_b(t) \\frac{f_{cb} L_c(t)}{\\sum_k f_{kb} L_k(t)}$$
+
+    The result is expected to satisfy:
+
+    1. for every EIA-930 BA and hour with demand, the county shares of the
+       BA sum to $D_b(t)$, so the county total equals the EIA-930 total plus
+       the uncalibrated shares of non-EIA-930 BAs;
+    2. when $\\sum_k f_{kb} L_k(t) = 0$, the BA demand is split by the
+       factors $f_{cb}$ alone;
+    3. shares of BAs without EIA-930 demand (e.g., `SWPP`) keep the county
+       estimate $f_{cb} L_c(t)$;
+    4. hours without EIA-930 demand (the first 8 hours of 2018) are `NaN`
+       for counties served by the missing BAs.
+
+    Because EIA-930 demand is net of rooftop PV, the result is a net load.
+    """
+    filename = "county_ba_load.csv.gz"
+    if os.path.exists(filename) and not refresh:
+        return pd.read_csv(filename,parse_dates=[0])
+
+    deps = refresh=="all"
+    load = read_county_estimate(net=net).set_index("timestamp").reindex(hour_range)
+    demand = read_ba_load(refresh=deps).set_index("timestamp").reindex(hour_range)
+    factor = read_county_ba(refresh=deps).pivot_table(index="county_st",
+        columns="ba",values="factor",aggfunc="sum",fill_value=0.0)
+    missing = sorted(set(load.columns) - set(factor.index))
+    if missing:
+        warn(f"counties without BA factors are omitted: {', '.join(missing)}")
+    counties = [x for x in load.columns if x in factor.index]
+    load = load[counties]
+    factor = factor.loc[counties]
+    bas = list(factor.columns)
+    nodemand = sorted(set(demand.columns) - set(bas))
+    if nodemand:
+        warn(f"EIA-930 BAs without counties are not allocated: {', '.join(nodemand)}")
+
+    L = load.values                                   # hours x counties
+    F = factor.values                                 # counties x BAs
+    S = L @ F                                         # hours x BAs (BA estimate)
+    D = demand.reindex(columns=bas).values            # hours x BAs (NaN if not in EIA-930)
+    in930 = np.array([x in demand.columns for x in bas])
+    with np.errstate(divide="ignore",invalid="ignore"):
+        R = np.where(S > 0,D/S,0.0)                   # BA scale factor
+    R[:,~in930] = 1.0                                 # non-EIA-930 BAs keep the estimate
+    nodata = np.isnan(D) & in930                      # missing EIA-930 hours
+    R[nodata] = 0.0
+    result = L * (R @ F.T)
+    # BA hours with zero estimated load: split demand by factors alone
+    zero = (S <= 0) & in930 & ~nodata
+    if zero.any():
+        result += (np.where(zero,D,0.0) / F.sum(axis=0)) @ F.T
+    # a county is NaN in an hour when any of its EIA-930 BAs has no data
+    result[(nodata.astype(float) @ (F.T > 0)) > 0] = np.nan
+
+    county_ba_load = pd.DataFrame(result,index=hour_range,columns=counties)\
+        .rename_axis("timestamp").round(precision).reset_index()
+    county_ba_load.to_csv(filename,index=False,header=True,compression="gzip")
+    return county_ba_load
+
+def read_node_ba_load(*,
+    refresh:bool|str=False,
+    precision:int=PRECISION,
+    ) -> pd.DataFrame:
+    """Read node hourly load disaggregated from EIA-930 BA demand
+
+    Arguments
+    ---------
+    - `refresh`: force refresh of data file (`"all"` forces refresh of
+      dependencies)
+
+    - `precision`: data rounding precision
+
+    Returns
+    -------
+    - `pandas.DataFrame`: contents of the data file
+      - `timestamp`: UTC date/time of the beginning of the hour
+      - ...: node geohash load (MW)
+
+    Description
+    -----------
+    The node load is the sum of the county loads of `read_county_ba_load`
+    allocated with the county-to-node factors of `read_county_node_factor`:
+
+    $$N_n(t) = \\sum_c g_{cn} X_c(t)$$
+
+    Because each county's factors sum to 1, the total node load equals the
+    total county load. Only US counties are included; the Canadian and
+    Mexican loads are not in EIA-930 and are not included (node `c2u6xt` is
+    a Canadian node that receives the load of nearby US counties).
+    """
+    filename = "node_ba_load.csv.gz"
+    if os.path.exists(filename) and not refresh:
+        return pd.read_csv(filename,parse_dates=[0])
+
+    county_load = read_county_ba_load(refresh=refresh=="all").set_index("timestamp")
+    factor = read_county_node_factor(refresh=refresh=="all").pivot_table(index="county_st",
+        columns="node",values="factor",aggfunc="sum",fill_value=0.0)
+    missing = sorted(set(county_load.columns) - set(factor.index))
+    if missing:
+        warn(f"counties without node factors are omitted: {', '.join(missing)}")
+    counties = [x for x in county_load.columns if x in factor.index]
+    factor = factor.loc[counties,sorted(factor.columns)]
+    values = county_load[counties]
+    node_load = values.fillna(0.0).values @ factor.values
+    # a node is NaN in an hour when any of its counties is NaN
+    node_load[(values.isna().values.astype(float) @ (factor.values > 0)) > 0] = np.nan
+
+    node_ba_load = pd.DataFrame(node_load,index=county_load.index,columns=factor.columns)\
+        .round(precision).reset_index()
+    node_ba_load.to_csv(filename,index=False,header=True,compression="gzip")
+    return node_ba_load
+
 def read_county_bus_map():
     """Read the county-to-bus mapping
 
@@ -1051,6 +1342,12 @@ if __name__ == "__main__":
     state_mwh = read_state_mwh(refresh=refresh)
     state_net = read_state_net(refresh=refresh)
     state_calibration = read_state_calibration(refresh=refresh)
+
+    ba_load = read_ba_load(refresh=refresh)
+    county_ba = read_county_ba(refresh=refresh)
+    county_node_factor = read_county_node_factor(refresh=refresh)
+    county_ba_load = read_county_ba_load(refresh=refresh)
+    node_ba_load = read_node_ba_load(refresh=refresh)
     # state_offset = read_state_offset(refresh=refresh)
 
 
