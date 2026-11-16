@@ -32,7 +32,7 @@ unit (0 MW in the case) and types NREL prices at 0 (hydro, wind, solar,
 geothermal, biomass, one nuclear unit) are written as 0.
 
 Output: the rewritten CSV, and a table of the fit on stdout. Needs
-`openpyxl` (`pip install openpyxl`; not a `ppedit` dependency).
+`openpyxl` (`pip install openpyxl`).
 """
 
 import collections

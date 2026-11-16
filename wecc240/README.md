@@ -45,13 +45,11 @@ This model was produced by LLNL in 2026 and reflects the system in Q3 2025.
 The model is based on the `wecc240_2020` model with updates for new
 generation and new loads, including data centers.
 
-## Cases imported from `ppedit`
+## PYPOWER case files
 
-The following files were imported from the `examples/` folder of
-[dchassin/ppedit](https://github.com/dchassin/ppedit) (commit `305c858`); see
-that folder's `README.md` for full provenance. `wecc240_2011.py` and
-`wecc240_2018.py` are now the PYPOWER case files written by `ppedit`; they
-replace the earlier `pypower_sim` model modules of the same names.
+`wecc240_2011.py` and `wecc240_2018.py` are PYPOWER case files generated from
+the PSS/E RAW file by the build scripts below; they replace the earlier
+`pypower_sim` model modules of the same names.
 
 | File | Description |
 | ---- | ----------- |
@@ -67,7 +65,7 @@ replace the earlier `pypower_sim` model modules of the same names.
 | `wecc240_gentypes.py` | derives `wecc240_gentypes.csv` from `data/WECC240_2018_Generation_scheduling.xlsx` (needs `openpyxl`) |
 | `build_wecc240_2011.py` | builds `wecc240_case.py` and `wecc240_2011.py` from `wecc240_case.raw` and `wecc240_geodata.csv` |
 | `build_wecc240_2018.py` | builds `wecc240_2018.py` from `wecc240_2011.py` and the cost CSVs |
-| `_case.py`, `_psse.py`, `_dcline.py` | private copies of ppedit's `case.py`, `_psse.py` and `_dcline.py` used by the build scripts, so ppedit need not be installed |
+| `_case.py`, `_psse.py`, `_dcline.py` | private modules used by the build scripts: case model, PSS/E RAW reader, DC line solver |
 
 ### Data flow
 

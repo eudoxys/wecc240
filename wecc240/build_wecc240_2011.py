@@ -18,8 +18,7 @@ is load at the inverter bus, so the power flow solution is unchanged.
 are the case voltages (`Vm`) of the terminal buses. The DC lines have zero
 polynomial `dclinecost`.
 
-Uses `_case.py`, `_psse.py` and `_dcline.py`, copied from
-https://github.com/dchassin/ppedit; ppedit itself is not needed.
+Uses `_case.py`, `_psse.py` and `_dcline.py`.
 """
 
 import os

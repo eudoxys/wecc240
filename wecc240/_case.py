@@ -1,4 +1,4 @@
-"""@private Copied from `ppedit/case.py` in https://github.com/dchassin/ppedit (commit `305c858`).
+"""@private
 
 PYPOWER case model
 
@@ -19,7 +19,7 @@ It also reads, but does not write, Siemens PTI PSS/E power flow cases
 generators, branches, 2- and 3-winding transformers (a star bus is added
 for each 3-winding transformer) and two-terminal DC lines are converted as
 MATPOWER's `psse2mpc` does; `Case.notes` lists what was not converted
-(see `ppedit._psse`). Save the case as `.py`, `.json` or `.glm`.
+(see `_psse`). Save the case as `.py`, `.json` or `.glm`.
 
 DC lines (`dcline`, columns as in `pypower.idx_dcline`) connect two buses
 with a controlled real power flow `Pf` and linear losses `loss0 +
@@ -47,7 +47,7 @@ kept as auxiliary data. The editor draws the network on a map from it.
 Examples
 --------
 
-    >>> from ppedit import Case
+    >>> from _case import Case
     >>> case = Case.builtin("case9")
     >>> case.size()
     {'bus': 9, 'gen': 3, 'branch': 9, 'gencost': 3, 'dcline': 0, 'dclinecost': 0, 'areas': 1}
@@ -607,7 +607,7 @@ class Case:
     def _dump_py(self):
         out = io.StringIO()
         name = self.name if self.name.isidentifier() else "case"
-        out.write(f'''"""PYPOWER case {name} (written by ppedit)"""
+        out.write(f'''"""PYPOWER case {name} (written by wecc240)"""
 
 from numpy import array
 
@@ -643,7 +643,7 @@ def {name}():
 
     def _dump_glm(self):
         out = io.StringIO()
-        out.write(f"// {self.name}: written by ppedit\n")
+        out.write(f"// {self.name}: written by wecc240\n")
         out.write(f"module pypower\n{{\n    version {self.version};\n"
             f"    baseMVA {_fmt(self.baseMVA)};\n}}\n")
         out.write("\n//\n// bus\n//\n")
@@ -1894,7 +1894,7 @@ def _parse_glm(text):
         # the network comes from files the preprocessor would load; reading this
         # file alone would silently give an empty case
         raise CaseError("no pypower bus objects found in GLM; its data comes from "
-            + ", ".join(sources) + ", which ppedit does not expand (open that file instead)")
+            + ", ".join(sources) + ", which are not expanded (open that file instead)")
     if not module and not any(objects.values()):
         raise CaseError("no 'module pypower' objects found in GLM")
     # buses

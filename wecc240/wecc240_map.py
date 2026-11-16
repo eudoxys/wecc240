@@ -1,4 +1,4 @@
-"""PYPOWER case wecc240_case (written by ppedit)"""
+"""PYPOWER case wecc240_case (written by wecc240)"""
 
 from numpy import array
 

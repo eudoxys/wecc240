@@ -1,4 +1,4 @@
-"""@private Copied from `ppedit/_dcline.py` in https://github.com/dchassin/ppedit (commit `305c858`).
+"""@private
 
 DC line model for the PYPOWER solver (private)
 

@@ -24,7 +24,7 @@ divided by `MAX_LOADING` (rounded up to whole MVA), and its `rateB` and
 `rateC` raised to the new `rateA` where they are lower. Unrated branches stay
 unrated.
 
-Uses `_case.py` (and `_dcline.py`), copied from ppedit; ppedit itself is not needed.
+Uses `_case.py` and `_dcline.py`.
 """
 
 import csv

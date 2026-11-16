@@ -1,10 +1,10 @@
-"""@private Copied from `ppedit/_psse.py` in https://github.com/dchassin/ppedit (commit `305c858`).
+"""@private
 
 PSS/E RAW case reader
 
 `parse_raw(text)` converts a Siemens PTI PSS/E power flow case (`.raw`,
 revisions 23 through 35) into a PYPOWER `ppc` dict of plain lists, plus
-notes about the data that was not converted. `ppedit.Case.load` calls it
+notes about the data that was not converted. `_case.Case.load` calls it
 for `.raw` files; PSS/E is an input format only.
 
 The conversion follows MATPOWER's `psse2mpc` (`psse_parse`,
