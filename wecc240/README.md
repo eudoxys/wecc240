@@ -44,3 +44,29 @@ Load curtailment is implemented in three regimes:
 This model was produced by LLNL in 2026 and reflects the system in Q3 2025.
 The model is based on the `wecc240_2020` model with updates for new
 generation and new loads, including data centers.
+
+## Cases imported from `ppedit`
+
+The following files were imported from the `examples/` folder of
+[dchassin/ppedit](https://github.com/dchassin/ppedit) (commit `305c858`); see
+that folder's `README.md` for full provenance. `wecc240_2011.py` and
+`wecc240_2018.py` are now the PYPOWER case files written by `ppedit`; they
+replace the earlier `pypower_sim` model modules of the same names.
+
+| File | Description |
+| ---- | ----------- |
+| `wecc240_case.raw` | 2011 WECC 240-bus case as PSS/E revision 34 (same as `PSSE/wecc240_psse.raw`) |
+| `wecc240_case.py` | that case converted by `ppedit`, without geodata |
+| `wecc240_map.py` | the case with its `geodata` and `geotags` |
+| `wecc240_2011.py` | the 2011 case with geodata; Pacific DC Intertie and Intermountain lines as `dcline` rows |
+| `wecc240_2018.py` | `wecc240_2011.py` with generator costs by type, branch ratings, voltage fixes and `rateA` margins; generated, don't edit |
+| `wecc240_bus.csv` | bus index (row, PSS/E bus number, name, PYPOWER `bus_i`) |
+| `wecc240_cost.csv` | one cost row per generator (`id` is bus name and PSS/E generator ID) |
+| `wecc240_gentypes.csv` | polynomial costs (`c2,c1,c0`) by generator type |
+| `wecc240_geodata.csv` | bus locations (same as `gis/wecc240.csv`) |
+| `wecc240_gentypes.py` | derives `wecc240_gentypes.csv` from `data/WECC240_2018_Generation_scheduling.xlsx` (needs `openpyxl`) |
+| `build_wecc240_2018.py` | rebuilds `wecc240_2018.py` (needs `ppedit`) |
+
+Rebuild `wecc240_2018.py` after changing the costs with
+
+    python3 wecc240/build_wecc240_2018.py
