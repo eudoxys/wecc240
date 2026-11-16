@@ -56,18 +56,22 @@ replace the earlier `pypower_sim` model modules of the same names.
 | File | Description |
 | ---- | ----------- |
 | `wecc240_case.raw` | 2011 WECC 240-bus case as PSS/E revision 34 (same as `PSSE/wecc240_psse.raw`) |
-| `wecc240_case.py` | that case converted by `ppedit`, without geodata |
+| `wecc240_case.py` | that case converted by `build_wecc240_2011.py`, without geodata; generated, don't edit |
 | `wecc240_map.py` | the case with its `geodata` and `geotags` |
-| `wecc240_2011.py` | the 2011 case with geodata; Pacific DC Intertie and Intermountain lines as `dcline` rows |
+| `wecc240_2011.py` | the 2011 case with geodata; Pacific DC Intertie and Intermountain lines as `dcline` rows; generated, don't edit |
 | `wecc240_2018.py` | `wecc240_2011.py` with generator costs by type, branch ratings, voltage fixes and `rateA` margins; generated, don't edit |
 | `wecc240_bus.csv` | bus index (row, PSS/E bus number, name, PYPOWER `bus_i`) |
 | `wecc240_cost.csv` | one cost row per generator (`id` is bus name and PSS/E generator ID) |
 | `wecc240_gentypes.csv` | polynomial costs (`c2,c1,c0`) by generator type |
 | `wecc240_geodata.csv` | bus locations (same as `gis/wecc240.csv`) |
 | `wecc240_gentypes.py` | derives `wecc240_gentypes.csv` from `data/WECC240_2018_Generation_scheduling.xlsx` (needs `openpyxl`) |
-| `build_wecc240_2018.py` | rebuilds `wecc240_2018.py` |
-| `_case.py`, `_dcline.py` | private copies of ppedit's `case.py` and `_dcline.py` used by `build_wecc240_2018.py`, so ppedit need not be installed |
+| `build_wecc240_2011.py` | builds `wecc240_case.py` and `wecc240_2011.py` from `wecc240_case.raw` and `wecc240_geodata.csv` |
+| `build_wecc240_2018.py` | builds `wecc240_2018.py` from `wecc240_2011.py` and the cost CSVs |
+| `_case.py`, `_psse.py`, `_dcline.py` | private copies of ppedit's `case.py`, `_psse.py` and `_dcline.py` used by the build scripts, so ppedit need not be installed |
 
-Rebuild `wecc240_2018.py` after changing the costs with
+Rebuild the cases from the RAW file with
 
+    python3 wecc240/build_wecc240_2011.py
     python3 wecc240/build_wecc240_2018.py
+
+(only the second is needed after changing the costs).

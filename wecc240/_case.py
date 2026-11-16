@@ -511,7 +511,10 @@ class Case:
                 raise CaseError(f"invalid JSON: {err}") from err
             case = cls(data,name)
         elif fmt == "raw":
-            from ppedit._psse import parse_raw,RawError # pylint: disable=import-outside-toplevel
+            try: # pylint: disable=import-outside-toplevel
+                from ._psse import parse_raw,RawError
+            except ImportError:
+                from _psse import parse_raw,RawError
             try:
                 data,notes = parse_raw(text)
             except RawError as err:
