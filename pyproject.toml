@@ -28,7 +28,7 @@ authors = [
     {name = "David P. Chassin <dchassin@eudoxys.com>"},
     ]
 maintainers = [
-    {name = "David P. Chassin <dpchassin@gmail.com>"},
+    {name = "David P. Chassin <dchassin@eudoxys.com>"},
     ]
 readme = "README.md"
 requires-python = "== 3.12.*" # must match the CI python version
