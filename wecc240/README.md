@@ -69,6 +69,47 @@ replace the earlier `pypower_sim` model modules of the same names.
 | `build_wecc240_2018.py` | builds `wecc240_2018.py` from `wecc240_2011.py` and the cost CSVs |
 | `_case.py`, `_psse.py`, `_dcline.py` | private copies of ppedit's `case.py`, `_psse.py` and `_dcline.py` used by the build scripts, so ppedit need not be installed |
 
+### Data flow
+
+Slanted boxes are source files, rounded boxes are scripts, and rectangles are
+generated files.
+
+```mermaid
+flowchart LR
+    raw[/wecc240_case.raw/]
+    geo[/wecc240_geodata.csv/]
+    xlsx[/"data/WECC240_2018_Generation_scheduling.xlsx"/]
+    cost[/wecc240_cost.csv/]
+    bus[/wecc240_bus.csv/]
+
+    b2011([build_wecc240_2011.py])
+    gt([wecc240_gentypes.py])
+    b2018([build_wecc240_2018.py])
+
+    case[wecc240_case.py]
+    c2011[wecc240_2011.py]
+    types[wecc240_gentypes.csv]
+    c2018[wecc240_2018.py]
+
+    raw --> b2011
+    b2011 -- "1. convert RAW" --> case
+    case -- "2. read back" --> b2011
+    geo -- "bus locations" --> b2011
+    b2011 -- "3. add geodata and HVDC dcline rows" --> c2011
+
+    xlsx --> gt
+    gt -- "cost curve by generator type" --> types
+
+    c2011 --> b2018
+    types -- "c2, c1, c0 by type" --> b2018
+    cost -- "generator type per generator" --> b2018
+    bus -- "bus name check" --> b2018
+    b2018 -- "costs, branch ratings, voltage fixes, rateA margins" --> c2018
+```
+
+`wecc240_gentypes.py` needs `openpyxl` and is run only to rederive the type
+costs; `wecc240_gentypes.csv` is checked in.
+
 Rebuild the cases from the RAW file with
 
     python3 wecc240/build_wecc240_2011.py
