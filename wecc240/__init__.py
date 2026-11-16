@@ -59,5 +59,7 @@ https://ieeexplore.ieee.org/abstract/document/9299666.
 ----
 """
 
-from .wecc240_2011 import WECC240_2011
-from .wecc240_2018 import WECC240_2018
+from .wecc240_2011 import wecc240_2011
+WECC240_2011 = wecc240_2011()
+from .wecc240_2018 import wecc240_2018
+WECC240_2018 = wecc240_2018()
