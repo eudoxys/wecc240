@@ -50,3 +50,9 @@ Issues = "https://github.com/eudoxys/wecc240/issues"
 
 [project.scripts]
 wecc240 = "wecc240.wecc240:main"
+
+[tool.pytest.ini_options]
+testpaths = ["wecc240/_test"]
+markers = [
+    "network: downloads external data (slow on an empty cache)",
+    ]

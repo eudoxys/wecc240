@@ -1,0 +1,4 @@
+# wecc240/.gitignore: generated output that must never be committed
+.cache*
+*_errors.csv
+__marimo__/
