@@ -65,7 +65,8 @@ replace the earlier `pypower_sim` model modules of the same names.
 | `wecc240_gentypes.csv` | polynomial costs (`c2,c1,c0`) by generator type |
 | `wecc240_geodata.csv` | bus locations (same as `gis/wecc240.csv`) |
 | `wecc240_gentypes.py` | derives `wecc240_gentypes.csv` from `data/WECC240_2018_Generation_scheduling.xlsx` (needs `openpyxl`) |
-| `build_wecc240_2018.py` | rebuilds `wecc240_2018.py` (needs `ppedit`) |
+| `build_wecc240_2018.py` | rebuilds `wecc240_2018.py` |
+| `_case.py`, `_dcline.py` | private copies of ppedit's `case.py` and `_dcline.py` used by `build_wecc240_2018.py`, so ppedit need not be installed |
 
 Rebuild `wecc240_2018.py` after changing the costs with
 

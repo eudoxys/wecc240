@@ -24,7 +24,7 @@ divided by `MAX_LOADING` (rounded up to whole MVA), and its `rateB` and
 `rateC` raised to the new `rateA` where they are lower. Unrated branches stay
 unrated.
 
-Requires `ppedit` (`pip install git+https://github.com/dchassin/ppedit`).
+Uses `_case.py` (and `_dcline.py`), copied from ppedit; ppedit itself is not needed.
 """
 
 import csv
@@ -33,7 +33,7 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-from ppedit import Case # pylint: disable=wrong-import-position
+from _case import Case # pylint: disable=wrong-import-position,import-error
 
 VG = {4039:1.08,4131:1.08,4132:1.08,4231:1.08,6433:1.08}
 """Generator voltage setpoints (pu) by bus"""
