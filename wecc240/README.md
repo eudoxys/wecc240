@@ -44,3 +44,73 @@ Load curtailment is implemented in three regimes:
 This model was produced by LLNL in 2026 and reflects the system in Q3 2025.
 The model is based on the `wecc240_2020` model with updates for new
 generation and new loads, including data centers.
+
+## PYPOWER case files
+
+`wecc240_2011.py` and `wecc240_2018.py` are PYPOWER case files generated from
+the PSS/E RAW file by the build scripts below; they replace the earlier
+`pypower_sim` model modules of the same names.
+
+| File | Description |
+| ---- | ----------- |
+| `wecc240_case.raw` | 2011 WECC 240-bus case as PSS/E revision 34 (same as `PSSE/wecc240_psse.raw`) |
+| `wecc240_case.py` | that case converted by `build_wecc240_2011.py`, without geodata; generated, don't edit |
+| `wecc240_map.py` | the case with its `geodata` and `geotags` |
+| `wecc240_2011.py` | the 2011 case with geodata; Pacific DC Intertie and Intermountain lines as `dcline` rows; generated, don't edit |
+| `wecc240_2018.py` | `wecc240_2011.py` with generator costs by type, branch ratings, voltage fixes and `rateA` margins; generated, don't edit |
+| `wecc240_bus.csv` | bus index (row, PSS/E bus number, name, PYPOWER `bus_i`) |
+| `wecc240_cost.csv` | one cost row per generator (`id` is bus name and PSS/E generator ID) |
+| `wecc240_gentypes.csv` | polynomial costs (`c2,c1,c0`) by generator type |
+| `wecc240_geodata.csv` | bus locations (same as `gis/wecc240.csv`) |
+| `wecc240_gentypes.py` | derives `wecc240_gentypes.csv` from `data/WECC240_2018_Generation_scheduling.xlsx` (needs `openpyxl`) |
+| `build_wecc240_2011.py` | builds `wecc240_case.py` and `wecc240_2011.py` from `wecc240_case.raw` and `wecc240_geodata.csv` |
+| `build_wecc240_2018.py` | builds `wecc240_2018.py` from `wecc240_2011.py` and the cost CSVs |
+| `_case.py`, `_psse.py`, `_dcline.py` | private modules used by the build scripts: case model, PSS/E RAW reader, DC line solver |
+
+### Data flow
+
+Slanted boxes are source files, rounded boxes are scripts, and rectangles are
+generated files.
+
+```mermaid
+flowchart LR
+    raw[/wecc240_case.raw/]
+    geo[/wecc240_geodata.csv/]
+    xlsx[/"data/WECC240_2018_Generation_scheduling.xlsx"/]
+    cost[/wecc240_cost.csv/]
+    bus[/wecc240_bus.csv/]
+
+    b2011([build_wecc240_2011.py])
+    gt([wecc240_gentypes.py])
+    b2018([build_wecc240_2018.py])
+
+    case[wecc240_case.py]
+    c2011[wecc240_2011.py]
+    types[wecc240_gentypes.csv]
+    c2018[wecc240_2018.py]
+
+    raw --> b2011
+    b2011 -- "1. convert RAW" --> case
+    case -- "2. read back" --> b2011
+    geo -- "bus locations" --> b2011
+    b2011 -- "3. add geodata and HVDC dcline rows" --> c2011
+
+    xlsx --> gt
+    gt -- "cost curve by generator type" --> types
+
+    c2011 --> b2018
+    types -- "c2, c1, c0 by type" --> b2018
+    cost -- "generator type per generator" --> b2018
+    bus -- "bus name check" --> b2018
+    b2018 -- "costs, branch ratings, voltage fixes, rateA margins" --> c2018
+```
+
+`wecc240_gentypes.py` needs `openpyxl` and is run only to rederive the type
+costs; `wecc240_gentypes.csv` is checked in.
+
+Rebuild the cases from the RAW file with
+
+    python3 wecc240/build_wecc240_2011.py
+    python3 wecc240/build_wecc240_2018.py
+
+(only the second is needed after changing the costs).
