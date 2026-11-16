@@ -1,27 +1,64 @@
 name: validate
 
+# Run only when code, test data, or dependencies change
 on:
   push:
     branches: [ main ]
+    paths: &paths
+      - "wecc240/**"
+      - "!wecc240/_explore/**"
+      - "!wecc240/_review/**"
+      - "!wecc240/_validate/**"
+      - "!**/*.md"
+      - "requirements.txt"
+      - "pyproject.toml"
+      - ".github/check_manifest.py"
+      - ".github/workflows/validate.yaml"
   pull_request:
     branches: [ main ]
+    paths: *paths
+  workflow_dispatch:
+
+# A newer push to the same branch/PR cancels the run in progress
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+# wecc240 downloads nothing at test time, so there is no data cache step;
+# add one (see the eudoxys-package validate.yaml template) if that changes.
 
 jobs:
-
-  pypower:
+  validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 30 # hard stop on a hung install or solve
 
     steps:
     - uses: actions/checkout@v4
+      # the repository holds ~900 MB of data that the tests don't read
+      with:
+        filter: blob:none
+        sparse-checkout: |
+          /*
+          !/wecc240/data/
+          !/wecc240/Canada/AESO/
+          !/wecc240/wecc240_2020_*.csv
+        sparse-checkout-cone-mode: false
 
     - name: Setup python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.12" # a patch version may not exist for the runner image
-    
+        python-version: "3.12" # must satisfy requires-python
+        cache: pip
+        cache-dependency-path: requirements.txt
+
     - name: Install packages
       run: |
-        python3 -m pip install --upgrade pip -r requirements.txt pylint
+        pip install --upgrade pip
+        pip install . pytest pylint   # non-editable: catches missing package-data
+
+    - name: Check manifest
+      run: |
+        python3 .github/check_manifest.py
 
     - name: Analyse code
       run: |
@@ -30,6 +67,4 @@ jobs:
 
     - name: Run tests
       run: |
-        cd test
-        pip install ..
-        python3 test.py
+        pytest --durations=10

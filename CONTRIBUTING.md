@@ -6,6 +6,8 @@ how to report problems, propose changes, and submit pull requests.
 
 Read the [README](README.md) for what the package does, and the
 [documentation](https://www.eudoxys.com/wecc240) for how to use it.
+Maintainers, and anyone using automated coding tools, should also read [CLAUDE.md](CLAUDE.md),
+[DESIGN.md](DESIGN.md), and [MANIFEST.md](MANIFEST.md).
 
 ## Code of conduct
 
@@ -31,8 +33,9 @@ If you find a problem or want a change, first
 If no issue covers it, open a new one. Include:
 
 - what you did (command or code, with the package version from
-  `pip show wecc240`);
+  `pip show wecc240` or `wecc240.__version__`);
 - what you expected and what happened instead (full error output);
+- for data problems, the inputs (e.g. case, node and period) that show it;
 - for install problems, your Python and `pip` versions.
 
 ### Approved issues
@@ -70,16 +73,19 @@ taking it.
        pip install --upgrade pip
        pip install -e . pytest
 
-3. Make your changes. Match the existing code style and don't reformat
-   code you aren't changing.
-4. Add or update tests in `test/` and run them:
+3. Make your changes. Follow the conventions in [CLAUDE.md](CLAUDE.md) and
+   the decisions in [DESIGN.md](DESIGN.md); match the existing code style and
+   don't reformat code you aren't changing.
+4. Add or update tests in `wecc240/_test/` and run them:
 
        pytest
 
 5. If you change a public class, function, argument, or output, update its
    docstring and example output, the package docstring, and the README.
    Check the documentation builds with `make docs`.
-6. Don't commit caches, downloaded data, or generated output. Changes to
+6. If you add, move, or delete files, update [MANIFEST.md](MANIFEST.md) and
+   run `python .github/check_manifest.py`.
+7. Don't commit caches, downloaded data, or generated output. Changes to
    curated data must include the script that produces them and an updated
    data README.
 
@@ -104,7 +110,7 @@ conversations resolved as you address them. If the branch falls behind
 ### Your PR is merged
 
 Congratulations, and thank you. Once merged, your change is installable
-from `main` with `epm upgrade wecc240` or
+from `main` with `epm install wecc240` or
 `pip install git+https://github.com/eudoxys/wecc240`, and appears in the next
 tagged release.
 

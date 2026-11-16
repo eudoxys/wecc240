@@ -1,10 +1,17 @@
-# Simple workflow for deploying static content to GitHub Pages
+# Builds the pdoc documentation and deploys it to GitHub Pages
 name: Deploy Pages
 
 on:
-  # Runs on pushes targeting the default branch
+  # Runs on pushes to main that can change the generated docs
   push:
     branches: ["main"]
+    # pdoc reads wecc240/__init__.py and the public modules' docstrings
+    paths:
+      - "wecc240/*.py"
+      - "Makefile"
+      - "requirements.txt"
+      - "pyproject.toml"
+      - ".github/workflows/deploy-pages.yaml"
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -31,6 +38,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        # docs need only the code, not the ~900 MB of data
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            /*
+            !/wecc240/data/
+            !/wecc240/Canada/AESO/
+            !/wecc240/wecc240_2020_*.csv
+          sparse-checkout-cone-mode: false
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12" # must satisfy requires-python
+          cache: pip
+          cache-dependency-path: requirements.txt
       - name: Create docs
         run: make docs
       - name: Setup Pages
@@ -38,7 +60,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
           path: 'docs'
       - name: Deploy to GitHub Pages
         id: deployment

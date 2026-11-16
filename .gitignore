@@ -179,4 +179,4 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
-/wecc240/data/__marimo__
+# package-level ignores are in wecc240/.gitignore
