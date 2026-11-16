@@ -1,39 +1,52 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["wecc240"]
+
+[tool.setuptools.package-data]
+# small curated reference data read at run time; the large 2020 time series
+# (wecc240_2020_*.csv) and the source data folders are not shipped
+wecc240 = [
+    "*.py",
+    "wecc240_bus.csv",
+    "wecc240_cost.csv",
+    "wecc240_gentypes.csv",
+    "wecc240_geodata.csv",
+    "wecc240_case.raw",
+    ]
+
+[tool.setuptools.dynamic]
+dependencies = {file=["requirements.txt"]}
 
 [project]
 name = "wecc240"
-version = "0.0.0"
-authors = [
-    { name = "David P. Chassin", email = "dchassin@eudoxys.com" }
-]
-maintainers = [
-    {name = "David P. Chassin <dpchassin@gmail.com>"},
-    ]
+version = "0.0.0" # 0.0.0 = unreleased (hidden by `epm index`)
 description = "WECC 240 bus models"
+authors = [
+    {name = "David P. Chassin <dchassin@eudoxys.com>"},
+    ]
+maintainers = [
+    {name = "David P. Chassin <dchassin@eudoxys.com>"},
+    ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = "== 3.12.*" # must match the CI python version
 keywords = ["eudoxys","wecc","model","wecc240"]
-license = {text="MIT"}
+license-files = ["LICENSE"]
 classifiers = [
-    "Programming Language :: Python :: 3",
-]
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering",
+    ]
 dynamic = ["dependencies"]
-
-[tool.setuptools]
-packages = [
-    "wecc240"
-]
-
-[tool.setuptools.dynamic]
-dependencies = {file = "requirements.txt"}
-
-[project.scripts]
-ppsim = "wecc240:main"
 
 [project.urls]
 Homepage = "https://github.com/eudoxys/wecc240"
 Documentation = "https://www.eudoxys.com/wecc240"
 Repository = "https://github.com/eudoxys/wecc240.git"
 Issues = "https://github.com/eudoxys/wecc240/issues"
+
+[project.scripts]
+wecc240 = "wecc240.wecc240:main"
