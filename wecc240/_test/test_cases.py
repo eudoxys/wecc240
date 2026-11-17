@@ -8,6 +8,7 @@ from pypower_sim import PPModel, PPSolver
 
 from wecc240.wecc240_2011 import wecc240_2011
 from wecc240.wecc240_2018 import wecc240_2018
+from wecc240.wecc240_2020 import wecc240_2020
 
 def test_wecc240_2011_pf():
     """The 2011 case has no generator costs, so only the power flow applies"""
@@ -22,10 +23,20 @@ def test_wecc240_2018_opf_pf():
     assert solver.solve_opf(), "OPF failed"
     assert solver.solve_pf(), "PF failed"
 
+def test_wecc240_2020_opf_pf():
+    """The 2020 case (1 January 2020 00:00 UTC) solves both OPF and power flow"""
+    model = PPModel(name="wecc240_2020",case=wecc240_2020)
+    solver = PPSolver(model)
+    assert solver.solve_opf(), "OPF failed"
+    assert solver.solve_pf(), "PF failed"
+
 def test_case_shapes():
-    """Both cases have 243 buses and the same network topology"""
-    for case in (wecc240_2011(),wecc240_2018()):
+    """All cases have 243 buses and the same network topology"""
+    for case in (wecc240_2011(),wecc240_2018(),wecc240_2020()):
         assert case["bus"].shape[0] == 243
         assert case["baseMVA"] == 100
-    assert wecc240_2011()["branch"].shape == wecc240_2018()["branch"].shape
+        assert case["branch"].shape == wecc240_2011()["branch"].shape
     assert wecc240_2011()["gen"].shape[0] == wecc240_2018()["gen"].shape[0]
+    case = wecc240_2020()
+    assert case["gen"].shape[0] >= wecc240_2018()["gen"].shape[0]
+    assert case["gencost"].shape[0] == case["gen"].shape[0]

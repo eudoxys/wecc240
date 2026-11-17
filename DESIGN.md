@@ -38,6 +38,7 @@ Baja California), 243 buses; time series 2018–2022 hourly, UTC.
 | 10 | AESO 2017–2020 and 2020–2023 load series are reconciled by adding the 1 May 2020 offset to the later series. |
 | 11 | Storage is scheduled for the CAISO duck curve: charge 09:00–15:00, discharge 15:00–21:00 (planned, Milestone 4). |
 | 12 | Load curtailment has three regimes (none; level 0 at 10% of node load; level 1 at 15% of area load) triggered by load within 10% / 15% of import plus generation (planned, Milestone 5). |
+| 13 | The 2020 case is built from `wecc240_2018()` by `build_wecc240_2020.py` (resolves open question 1, 2026-11-17): bus `PD` from `eudoxys/loads` county net load (calibrated gross less DG) on the county-to-node factors, plus Canadian/Mexican `load_MW`; generator `Pg` from `eudoxys/generation` node net generation by EIA category; new generators where a node has generation of a category it has no generator for, at the category's `Pmax`-weighted 2018 cost; solar and wind `Pmax = Pg`; oil, other and storage fixed at their output with zero cost. |
 
 ## Conventions inherited
 
@@ -55,7 +56,7 @@ wecc240/
   __init__.py            package docs; WECC240_2011, WECC240_2018 case dicts (#12)
   wecc240_2011.py        wecc240_2011() -> dict      generated
   wecc240_2018.py        wecc240_2018() -> dict      generated
-  wecc240_2020.py        wecc240_2020(adjustments) -> dict; WECC240_2020(PPModel)
+  wecc240_2020.py        wecc240_2020() -> dict      generated
   wecc240.py             main(): time-series run (CLI; broken, #5)
   wecc240_case.py        wecc240_case() -> dict      generated, no geodata
   wecc240_map.py         wecc240_case() -> dict      geodata/geotags (name mismatch, #11)
@@ -64,6 +65,7 @@ wecc240/
   _dcline.py             add_dclines(): DC-line userfcn for the solver
   build_wecc240_2011.py  builds wecc240_case.py, wecc240_2011.py
   build_wecc240_2018.py  builds wecc240_2018.py
+  build_wecc240_2020.py  builds wecc240_2020.py
   wecc240_gentypes.py    fits wecc240_gentypes.csv
   aggregate_*.py         build wecc240_2020_*.csv time series
   viewer.py              marimo viewer of the time series
@@ -84,7 +86,7 @@ wecc240/
 |---|---|
 | `wecc240_2011()` | PYPOWER case: 243 buses, `bus`, `gen`, `branch`, `dcline` (2 rows), `dclinecost`, `geodata`; no `gencost` (PF only) |
 | `wecc240_2018()` | as 2011 plus `gencost` (polynomial, one row per generator); OPF and PF solve; all buses ≤ 1.087 pu and rated branches ≤ 80% in its PF |
-| `wecc240_2020(adjustments)` | 2011/2018 case (open question 1) with `PD`, `QD` set to the peak hour of `data/wecc240_bus_PD.csv.gz`; each `{(table,column): scalar}` multiplies that column |
+| `wecc240_2020()` | as 2018 at 2020-01-01 00:00 UTC (decision 13): node net loads and node generation for that hour, extra generators and `gencost` rows for categories a node had none of; OPF and PF solve; the PF has buses above 1.1 pu and branches above `rateA` (not yet fixed) |
 
 ## Data sources and method
 
@@ -131,10 +133,8 @@ pruned set would need are still to be made.
 
 ## Open questions
 
-1. **Base of the 2020 model.** `README.md` says 2020 is built on the 2018
-   model; `wecc240_2020.py` starts from `wecc240_2011()` (no generator
-   costs, so no OPF) and its docstring cites Yuan et al. Options: use
-   `wecc240_2018()`; keep 2011 and document why.
+1. ~~**Base of the 2020 model.**~~ Resolved by decision 13: the 2020 case
+   is built from `wecc240_2018()`.
 2. **Public API** (#12): re-export case functions, provide `PPModel`
    subclasses for every year, or keep renamed lazy dicts.
 3. **Large data location** (#13): release assets + `cache`, separate data

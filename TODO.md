@@ -15,9 +15,11 @@
 
 - [ ] **Milestone 3: WECC 240 (2020)** (`wecc240.wecc240_2020`, in progress)
 
-  Quasi-steady time-series model for `pypower_sim`, based on the 2018 model
-  with node loads and generation from the `aggregate_*.py` scripts.
-  Remaining: make `wecc240_2020()` run from an installed package (#6),
+  Quasi-steady time-series model for `pypower_sim`, based on the 2018 model.
+  Done: static case `wecc240_2020` at 1 January 2020 00:00 UTC, built by
+  `wecc240/build_wecc240_2020.py` from `eudoxys/loads` node net loads and
+  `eudoxys/generation` node generation by category. Remaining: hourly time
+  series, voltages above 1.1 pu and overloaded branches in its power flow,
   decide where its time-series inputs live (#13), fix the aggregate scripts
   (#8, #9, #10).
 
@@ -59,7 +61,7 @@
 - [ ] `requirements.txt` cleaned up (#15)
 - [ ] Data READMEs with provenance (#14)
 - [ ] Large data relocated or pruned (#13)
-- [ ] Tests for `wecc240_2020`, CLI, build scripts, private modules (#16)
+- [ ] Tests for the CLI, build scripts, private modules (#16)
 - [ ] Generated `docs/` untracked (#18)
 - [ ] Legacy `PSSE/` removed or fixed (#7)
 - [ ] `DESIGN.md` open questions resolved and design agreed

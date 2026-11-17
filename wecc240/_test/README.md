@@ -40,5 +40,5 @@ the build scripts are installed with the package. Run alone:
 Not yet tested
 --------------
 
-`wecc240_2020`, the `wecc240` CLI, the `aggregate_*` scripts and the build
-scripts have no tests yet; see `TODO.md` and the open issues.
+The `wecc240` CLI, the `aggregate_*` scripts and the build scripts have no
+tests yet; see `TODO.md` and the open issues.
