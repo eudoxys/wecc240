@@ -147,6 +147,8 @@ and MW are NREL's 2018 counts and `Pmax` totals.
 - The node capacity files are keyed by node geohash, not bus, and a node can
   carry several type codes (e.g., `COLOEAST_P` and `COLOEAST_SC`).
 
+## Rebuilding cases from RAW file
+
 Rebuild the cases from the RAW file with
 
     python3 wecc240/build_wecc240_2011.py
