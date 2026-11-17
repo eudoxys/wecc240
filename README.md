@@ -7,10 +7,11 @@ WECC 240 bus models
 Electricity Coordinating Council (WECC) interconnection for power flow, OPF
 and quasi-steady time-series studies with `pypower` and `pypower_sim`. The
 static 2011 and 2018 cases are generated from the original PSS/E case and
-NREL's 2018 generation update; the 2020 model (in progress) adds hourly
-node loads, distributed generation, solar and wind built from county-level
-load models (`eudoxys/loads`), EIA data, and Canadian and Mexican utility
-data.
+NREL's 2018 generation update; the static 2020 case is the 2018 case at 1
+January 2020 00:00 UTC, with node net loads from county-level load models
+(`eudoxys/loads`), node generation by fuel category from EIA data
+(`eudoxys/generation`), and Canadian and Mexican utility data. Hourly time
+series for 2020 are in progress.
 
 Note that "WECC 240" is a misnomer: the more recent models have 243 buses.
 
@@ -51,6 +52,7 @@ The PYPOWER case files are generated; don't edit them by hand.
 
     python3 wecc240/build_wecc240_2011.py
     python3 wecc240/build_wecc240_2018.py
+    python3 wecc240/build_wecc240_2020.py   # reads eudoxys/loads and eudoxys/generation data
 
 See [`wecc240/README.md`](wecc240/README.md) for the data flow.
 
@@ -84,8 +86,9 @@ has no generator costs, so only its power flow can be solved):
   as converted to PYPOWER, with the HVDC lines as explicit DC lines.
 - `wecc240.wecc240_2018`: the 2011 model with NREL's 2018 generator costs,
   branch ratings and voltage fixes.
-- `wecc240.wecc240_2020`: quasi-steady time-series model (in progress; see
-  [TODO.md](TODO.md)).
+- `wecc240.wecc240_2020`: the 2018 model at 1 January 2020 00:00 UTC, with
+  node net loads and node generation by fuel category for that hour. The
+  time-series model is in progress (see [TODO.md](TODO.md)).
 
 The roadmap is in [TODO.md](TODO.md).
 

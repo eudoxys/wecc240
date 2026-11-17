@@ -10,9 +10,10 @@ specific to this package.
 
 Reduced-network (243-bus) PYPOWER models of the WECC interconnection. The
 static 2011 and 2018 cases are generated PYPOWER case files built from the
-2011 PSS/E RAW case and NREL's 2018 generation scheduling data; the 2020
-quasi-steady time-series model (in progress) adds hourly node loads, DG,
-solar and wind. Python 3.12, alpha, unreleased (`version = "0.0.0"`).
+2011 PSS/E RAW case and NREL's 2018 generation scheduling data; the static
+2020 case is the 2018 case at 1 January 2020 00:00 UTC with node loads from
+`eudoxys/loads` and node generation from `eudoxys/generation`. Hourly 2020
+time series are in progress. Python 3.12, alpha, unreleased (`version = "0.0.0"`).
 
 - Docs site: https://www.eudoxys.com/wecc240 (pdoc from docstrings)
 - Maintainer: David P. Chassin (`dchassin`)
@@ -36,8 +37,8 @@ Sibling Eudoxys dependencies:
 
 ## Core conventions
 
-- Case files (`wecc240_2011.py`, `wecc240_2018.py`, `wecc240_case.py`,
-  `wecc240_map.py`) are **generated**; change the build scripts or their
+- Case files (`wecc240_2011.py`, `wecc240_2018.py`, `wecc240_2020.py`,
+  `wecc240_case.py`, `wecc240_map.py`) are **generated**; change the build scripts or their
   CSV inputs and rebuild, never edit them by hand.
 - Each case module defines a function of the same name returning the
   PYPOWER case dict (except `wecc240_map.py`, whose function is
@@ -69,6 +70,7 @@ make docs                               # pdoc into docs/
 python3 .github/check_manifest.py       # MANIFEST.md covers git ls-files
 python3 wecc240/build_wecc240_2011.py   # regenerate the 2011 case
 python3 wecc240/build_wecc240_2018.py   # regenerate the 2018 case
+python3 wecc240/build_wecc240_2020.py   # regenerate the 2020 case (reads loads/generation data)
 ```
 
 CI (`validate.yaml`) installs non-editable, runs the manifest check,
@@ -78,8 +80,9 @@ large data.
 ## Known rough edges (don't "fix" silently; mention or ask)
 
 - The `wecc240` CLI fails when installed (#5).
-- `wecc240_2020()` fails from an installed package and has an undefined
-  name (#6).
+- `wecc240_2020.py` power flow has two buses above 1.1 pu (6304, 6401)
+  and 13 branches above `rateA`; `build_wecc240_2020.py` reports them but
+  does not fix them.
 - `wecc240.WECC240_2011` / `WECC240_2018` are case dicts built at import
   time, not classes (#12).
 - `aggregate_*.py` and `viewer.py` disagree on 2020 vs 2025 file names, and

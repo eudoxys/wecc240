@@ -25,11 +25,33 @@ control strategy are not fully realized without a time-series simulation.
 
 ## `wecc240_2020`
 
-This model was produced by NRL in 2026. The model is based on the
-`wecc240_2018` model with the `aggregate_load.py` and `aggregate_gens.py`
-scripts run to apply modifications to the loads and generation resources.
-This model a quasi-steady time-series model designed to be run using
-`pypower_sim`. 
+The static `wecc240_2020` case is the `wecc240_2018` case at 1 January
+2020 00:00 UTC, built by `build_wecc240_2020.py`:
+
+- Bus loads are node net loads from `eudoxys/loads`: each county's
+  calibrated gross load (`loads/wecc/wecc_estimate.csv.gz`) less its
+  distributed solar (`county_dg.csv.gz`), allocated to nodes with
+  `node_estimate_cf.csv`, plus the `load_MW` of the Canadian and Mexican
+  node files. A node's load is split among its buses by their 2018 `PD`,
+  keeping each bus's `QD/PD`.
+- Generator outputs are node net generation by EIA fuel category from
+  `eudoxys/generation` (`data/wecc/node_actual_{category}.csv.gz`), split
+  among a node's generators of that category by `Pmax`. Where a node has
+  generation of a category but no generator of it, a generator is added at
+  the node with `Pmax` the node's capacity
+  (`node_capacity_{category}.csv.gz`). Canadian and Mexican generators are
+  dispatched to the node files' `dispatch_MW` (Alberta, which has no
+  generator in the case, gets one).
+- Costs: existing generators keep their 2018 cost by type; an added
+  generator gets its category's cost (the `Pmax`-weighted mean of the
+  category's 2018 generator costs). Solar and wind get `Pmax = Pg`. Oil,
+  other, battery and pumped storage have no NREL cost and are fixed at their
+  output (`Pmin = Pmax = Pg`) with zero cost.
+
+Its power flow converges, with two buses above 1.1 pu (6304 LARAMIE,
+6401 TRACYSPP) and 13 branches above `rateA`; these are reported by the
+build script but not fixed. The hourly time-series model, designed to be
+run using `pypower_sim`, is in progress.
 
 ### Load Curtailment
 
@@ -58,6 +80,7 @@ the PSS/E RAW file by the build scripts below; they replace the earlier
 | `wecc240_map.py` | the case with its `geodata` and `geotags` |
 | `wecc240_2011.py` | the 2011 case with geodata; Pacific DC Intertie and Intermountain lines as `dcline` rows; generated, don't edit |
 | `wecc240_2018.py` | `wecc240_2011.py` with generator costs by type, branch ratings, voltage fixes and `rateA` margins; generated, don't edit |
+| `wecc240_2020.py` | `wecc240_2018.py` with loads and generation at 2020-01-01 00:00 UTC; generated, don't edit |
 | `wecc240_bus.csv` | bus index (row, PSS/E bus number, name, PYPOWER `bus_i`) |
 | `wecc240_cost.csv` | one cost row per generator (`id` is bus name and PSS/E generator ID) |
 | `wecc240_gentypes.csv` | polynomial costs (`c2,c1,c0`) by generator type |
@@ -65,6 +88,7 @@ the PSS/E RAW file by the build scripts below; they replace the earlier
 | `wecc240_gentypes.py` | derives `wecc240_gentypes.csv` from `data/WECC240_2018_Generation_scheduling.xlsx` (needs `openpyxl`) |
 | `build_wecc240_2011.py` | builds `wecc240_case.py` and `wecc240_2011.py` from `wecc240_case.raw` and `wecc240_geodata.csv` |
 | `build_wecc240_2018.py` | builds `wecc240_2018.py` from `wecc240_2011.py` and the cost CSVs |
+| `build_wecc240_2020.py` | builds `wecc240_2020.py` from `wecc240_2018.py`, `eudoxys/loads` and `eudoxys/generation` data |
 | `_case.py`, `_psse.py`, `_dcline.py` | private modules used by the build scripts: case model, PSS/E RAW reader, DC line solver |
 
 ### Data flow
@@ -103,6 +127,19 @@ flowchart LR
     cost -- "generator type per generator" --> b2018
     bus -- "bus name check" --> b2018
     b2018 -- "costs, branch ratings, voltage fixes, rateA margins" --> c2018
+
+    loads[/"eudoxys/loads loads/wecc"/]
+    gendata[/"eudoxys/generation data/wecc"/]
+    foreign[/"Canada/*.csv, Mexico/*.csv"/]
+    b2020([build_wecc240_2020.py])
+    c2020[wecc240_2020.py]
+
+    c2018 --> b2020
+    loads -- "county net load, node factors" --> b2020
+    gendata -- "node generation and capacity by category" --> b2020
+    foreign -- "load_MW, dispatch_MW" --> b2020
+    types -- "costs of added generators" --> b2020
+    b2020 -- "loads, dispatch, added generators" --> c2020
 ```
 
 `wecc240_gentypes.py` needs `openpyxl` and is run only to rederive the type
@@ -153,8 +190,14 @@ Rebuild the cases from the RAW file with
 
     python3 wecc240/build_wecc240_2011.py
     python3 wecc240/build_wecc240_2018.py
+    python3 wecc240/build_wecc240_2020.py
 
-(only the second is needed after changing the costs).
+(only the last two are needed after changing the costs).
+`build_wecc240_2020.py` reads `loads/wecc` of `eudoxys/loads` and
+`data/wecc` of `eudoxys/generation` from sibling clones of those
+repositories if present, otherwise from GitHub (about 200 MB); use
+`-l FOLDER` and `-g FOLDER` to name other copies, and `-t TIMESTAMP` for
+another hour.
 
 ### Provenance of `wecc240_gentypes.csv`
 
