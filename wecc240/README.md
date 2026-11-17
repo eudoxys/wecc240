@@ -108,6 +108,47 @@ flowchart LR
 `wecc240_gentypes.py` needs `openpyxl` and is run only to rederive the type
 costs; `wecc240_gentypes.csv` is checked in.
 
+### Generator types
+
+The `type` codes in `wecc240_gentypes.csv` are PSS/E generator IDs, the
+suffix of each `id` in `wecc240_cost.csv`. Their meaning comes from the
+`Gen_Type` column of the `Generator` sheet in
+`data/WECC240_2018_Generation_scheduling.xlsx`. The table maps them to the
+EIA fuel categories of the node capacity files
+(`data/wecc/node_capacity_<fuel>.csv.gz`) in `eudoxys/generation`. Units
+and MW are NREL's 2018 counts and `Pmax` totals.
+
+| Fuel category | Type codes | NREL `Gen_Type` | Units | MW |
+| ------------- | ---------- | --------------- | ----: | -: |
+| `coal` | `C` | Steam | 16 | 44,596 |
+| `coal` (probable) | `E` | Steam | 3 | 2,281 |
+| `natural_gas` | `G`, `CG`, `DG`, `EG`, `MG`, `NG`, `RG`, `SG`, `TG`, `WG` | Gas | 39 | 108,628 |
+| `nuclear` | `N`, `NN` | Nuclear | 3 | 7,733 |
+| `hydro` | `H`, `NH`, `SH` | Hydro-3 | 25 | 60,480 |
+| `wind` | `W`, `NW`, `SW`, `R` | Wind-2 | 18 | 21,140 |
+| `solar` | `S`, `NP`, `P` | PV-2 | 22 | 32,564 |
+| `geothermal` | `CE`, `NE` | Geothermal | 2 | 1,957 |
+| `biomass` | `B`, `NB` | Biomass | 5 | 1,841 |
+| `pumped_storage` | none | ESS-2 (`ESS` sheet) | 4 | |
+| `oil`, `other`, `battery_storage` | none | | | |
+
+- `E` (IMPERIAL, MEXICO, VALMY) is Steam in NREL's data like `C`, and its
+  marginal cost (`c1` 3.663 $/MWh, against 2.496 for `C` and 39–60 for the
+  gas codes) is coal-like; VALMY is a coal plant. The other two units are
+  not confirmed, so `E` may be other steam.
+- Pumped storage has no generator code: NREL models it as `Pump_ESS1`–`4`
+  in the `ESS` sheet (buses 2638, 7031, 7032 and 3432), which are not
+  generators in the case.
+- `SC` (SANMATEO, COLOEAST) and `ND` (MESA CAL, MIDWAY, TESLA) have no NREL
+  unit and no fuel category. `SC` units have `Pmax` 0.1 MW and ±500 to
+  ±1000 MVAr, i.e., synchronous condensers. `ND` units have `Pmax` 0 and
+  `Pmin` from −449 to −1006 MW, so they only absorb power; their meaning is
+  not documented.
+- The node capacity files are keyed by node geohash, not bus, and a node can
+  carry several type codes (e.g., `COLOEAST_P` and `COLOEAST_SC`).
+
+## Rebuilding cases from RAW file
+
 Rebuild the cases from the RAW file with
 
     python3 wecc240/build_wecc240_2011.py
