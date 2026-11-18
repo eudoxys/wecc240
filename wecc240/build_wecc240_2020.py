@@ -147,11 +147,29 @@ have no NREL cost and get the cost of the most expensive 2018 gas type
 (`PEAKER`); pumped storage, battery storage, the Alberta generator, solar,
 wind and hydro cost 0.
 
-Branch ratings, voltage setpoints and shunts are those of the 2018 case. The
-script solves the power flow and fails if it does not converge; it reports
-the slack generation, the buses outside their voltage limits and the number
-of branches loaded above `rateA`, but does not change the case to remove
-them.
+Dispatch and solution
+---------------------
+
+1. The dispatchable generators are dispatched by an OPF with the others
+   fixed at their `Pg` (solar, wind, batteries, Canada and Mexico, `SC` and
+   `ND` units), with `rateA` relaxed by the first factor of `RELAX` with
+   which it solves. Its `Pg`, `Qg` and voltages become the setpoints (`Vg` is
+   the OPF voltage of the generator's bus).
+
+2. The branches loaded above their 2018 `rateA` in the power flow of that
+   dispatch get `rateA` (and `rateB`, `rateC` where lower) raised to the flow
+   over `MAX_LOADING`, as `build_wecc240_2018.py` does.
+
+3. The OPF (PYPOWER's default PIPS solver, with the HVDC lines modeled by
+   `_case.Case.solve`) is solved again with the case's own limits and
+   ratings, and its solution is saved to the case with
+   `_case.Case.apply_result`: bus `Vm` and `Va`, generator `Pg` and `Qg`, and
+   DC line flows (`Vg` keeps the setpoints of step 1). The script fails if
+   this OPF, or a power flow from its solution, does not converge, and
+   reports the buses outside their voltage limits and the branches above
+   `rateA` in the OPF solution.
+
+Shunts and the other branch ratings are those of the 2018 case.
 
 Uses `_case.py` and `_dcline.py`.
 """
@@ -614,10 +632,14 @@ def main():
             br[5] = rate
             br[6] = max(br[6],rate)
             br[7] = max(br[7],rate)
+    # final OPF (PIPS) with the case's ratings: its solution is saved
+    opf = case.solve("opf")
+    if not opf["success"]:
+        raise ValueError("OPF of the case failed")
+    case.apply_result(opf)
     result = case.solve("pf")
     if not result["success"]:
-        raise ValueError("power flow failed")
-    check = case.solve("opf")
+        raise ValueError("power flow from the OPF solution failed")
     errors = [x["message"] for x in case.validate() if x["level"] == "error"]
     if errors:
         raise ValueError("; ".join(errors))
@@ -626,18 +648,17 @@ def main():
     ref = {b[0] for b in buses if b[1] == 3}
     slack = sum(g["Pg"] for g in result["gen"] if g["bus"] in ref) \
         - sum(g[1] for g in gens if g[0] in ref)
-    overloaded = sum(1 for x in result["branch"] if x["loading_pct"] is not None and x["loading_pct"] > 100)
-    vmax = max(x["Vm"] for x in result["bus"])
-    vmin = min(x["Vm"] for x in result["bus"])
+    overloaded = sum(1 for x in opf["branch"] if x["loading_pct"] is not None and x["loading_pct"] > 100)
+    vmax = max(x["Vm"] for x in opf["bus"])
+    vmin = min(x["Vm"] for x in opf["bus"])
     limits = {b[0]:(b[12],b[11]) for b in buses}
-    outside = [f"{x['bus_i']} ({x['Vm']:.3f})" for x in result["bus"]
+    outside = [f"{x['bus_i']} ({x['Vm']:.3f})" for x in opf["bus"]
         if not limits[x["bus_i"]][0] <= x["Vm"] <= limits[x["bus_i"]][1]]
     print(f"wrote wecc240/wecc240_2020.py at {timestamp} ({timestamp.tz_convert('America/Los_Angeles')}): "
         f"{case.size()}")
     print(f"  load {sum(b[2] for b in buses):.0f} MW at {len(load)} nodes; "
         f"buses set to no load: {unloaded}")
-    print(f"  generation {sum(g[1] for g in gens):.0f} MW scheduled, slack picked up {slack:.0f} MW, "
-        f"losses {result['losses_MW']:.0f} MW")
+    print(f"  generation {sum(g[1] for g in gens):.0f} MW (OPF), losses {opf['losses_MW']:.0f} MW")
     far = used.drop_duplicates("Plant Code")
     print(f"  fleet: {len(used)} of {len(units)} EIA-860 units (at {len(far)} plants, on "
         f"{used['node'].nunique()} nodes) are in counties and categories with data; nearest-node "
@@ -658,8 +679,9 @@ def main():
         f"{sum(x[5] for x in storage):.1f} MW scheduled)")
     print(f"  dispatch OPF solved with rateA x{factor:g}; rateA raised on {len(raised)} branches "
         "loaded above it: " + ", ".join(f"{f}-{t} {a:g}->{b:g}" for f,t,a,b in raised))
-    print(f"  OPF of the saved case: {'solved' if check['success'] else 'FAILED'}")
-    print(f"  power flow: Vm {vmin:.3f}-{vmax:.3f} pu, buses outside Vmin-Vmax: {outside}; "
+    print(f"  saved the OPF solution (cost {opf.get('objective',float('nan')):.0f} $/h): "
+        f"bus Vm, Va, generator Pg, Qg and DC line flows; power flow from it: slack {slack:+.0f} MW")
+    print(f"  OPF solution: Vm {vmin:.3f}-{vmax:.3f} pu, buses outside Vmin-Vmax: {outside}; "
         f"{overloaded} branches above rateA")
 
 if __name__ == "__main__":

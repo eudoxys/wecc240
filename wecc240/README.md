@@ -46,13 +46,17 @@ September; `-t` sets another hour), built by `build_wecc240_2020.py`:
   dispatchable categories get `Pmax` the node capacity; solar and wind get
   `Pmax = Pg` the node output.
 - Dispatch: the dispatchable generators are dispatched by an OPF with the
-  others fixed (solar, wind, batteries, Canada and Mexico), and the case
-  keeps the OPF's `Pg`, `Qg` and voltages as setpoints. The OPF is
+  others fixed (solar, wind, batteries, Canada and Mexico), and its `Pg`,
+  `Qg` and voltages become the setpoints. The OPF is
   infeasible with the 2018 branch ratings at the peak hour (it needs
   `rateA` × 2), so the branches loaded above `rateA` in the resulting power
   flow get `rateA` (and `rateB`, `rateC` where lower) raised to the flow
   over 0.8, as `build_wecc240_2018.py` does (21 branches at the default
   hour; the build lists them).
+- Solution: the OPF (PIPS, with the HVDC lines) is then solved with the
+  case's own limits and raised ratings, and its solution is saved to the
+  case (`_case.Case.apply_result`, as `ppedit` does): bus `Vm` and `Va`,
+  generator `Pg` and `Qg`, and DC line flows.
 - Costs: a node's generator gets the `Pmax`-weighted cost of the node's 2018
   generators of its category, else that of the category; oil and other get
   the most expensive 2018 gas cost (`TG`); pumped storage, solar, wind and
@@ -67,8 +71,9 @@ September; `-t` sets another hour), built by `build_wecc240_2020.py`:
 - Canadian and Mexican generators are dispatched to the node files'
   `dispatch_MW` (Alberta, which has no generator in the case, gets one).
 
-Its OPF and power flow solve; the power flow has no branch above `rateA`
-and voltages within 0.900-1.101 pu. The hourly time-series model, designed
+The saved OPF solution has no branch above `rateA` and voltages within
+0.900-1.100 pu (cost 2,198,990 $/h, generation 143,899 MW); a power flow
+from it converges. The hourly time-series model, designed
 to be run using `pypower_sim`, is in progress.
 
 ### Load Curtailment
