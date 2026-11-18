@@ -25,41 +25,104 @@ control strategy are not fully realized without a time-series simulation.
 
 ## `wecc240_2020`
 
-The static `wecc240_2020` case is the `wecc240_2018` case at 1 January
-2020 00:00 UTC, built by `build_wecc240_2020.py`:
+The static `wecc240_2020` case is the `wecc240_2018` network at the hour of
+the peak CAISO net load in 2020 (2020-09-07 01:00 UTC, 18:00 PDT on 6
+September; `-t` sets another hour), built by `build_wecc240_2020.py`:
 
-- Bus loads are node net loads from `eudoxys/loads`: each county's
-  calibrated gross load (`loads/wecc/wecc_estimate.csv.gz`) less its
-  distributed solar (`county_dg.csv.gz`), allocated to nodes with
+- Bus loads are node net loads from `eudoxys/loads` at the hour: each
+  county's calibrated gross load (`loads/wecc/wecc_estimate.csv.gz`) less
+  its distributed solar (`county_dg.csv.gz`), allocated to nodes with
   `node_estimate_cf.csv`, plus the `load_MW` of the Canadian and Mexican
   node files. A node's load is split among its buses by their 2018 `PD`,
   keeping each bus's `QD/PD`.
-- Generator outputs are node net generation by EIA fuel category from
-  `eudoxys/generation` (`data/wecc/node_actual_{category}.csv.gz`), split
-  among a node's generators of that category by `Pmax`. Where a node has
-  generation of a category but no generator of it, a generator is added at
-  the node with `Pmax` the node's capacity
-  (`node_capacity_{category}.csv.gz`). Canadian and Mexican generators are
-  dispatched to the node files' `dispatch_MW` (Alberta, which has no
-  generator in the case, gets one).
-- Costs: existing generators keep their 2018 cost by type; an added
-  generator gets its category's cost (the `Pmax`-weighted mean of the
-  category's 2018 generator costs). Solar and wind get `Pmax = Pg`. Oil,
-  other and pumped storage have no NREL cost and are fixed at their output
-  (`Pmin = Pmax = Pg`) with zero cost.
+- County loads are scaled so that each US balancing authority's 2020 peak
+  matches its EIA Form 930 demand peak (`data/form930_load_2020.csv.gz`,
+  written by `data/form930_load.py` with `eia.Form930` of `eudoxys/eia`;
+  spikes and bad hours are dropped first). Counties are split among
+  balancing authorities by the nameplate share of the balancing authorities
+  of their EIA-860 plants; counties without plants take the split of the
+  counties sharing their load node. Total load at the default hour is
+  133.0 GW (140.5 GW unscaled). PSEI has almost no 2020 Form 930 load data,
+  so its counties are not scaled.
+- The US generator fleet is replaced by `eudoxys/generation`'s node
+  capacity and output (`data/wecc/node_capacity_*.csv.gz`,
+  `node_actual_*.csv.gz`), which map each county to its `gen` node in
+  `data/county_node_map.csv`. Each node and category gets one generator:
+  dispatchable categories get `Pmax` the node capacity; solar and wind get
+  `Pmax = Pg` the node output.
+- Dispatch: the dispatchable generators are dispatched by an OPF with the
+  others fixed (solar, wind, batteries, Canada and Mexico), and the case
+  keeps the OPF's `Pg`, `Qg` and voltages as setpoints. The OPF is
+  infeasible with the 2018 branch ratings at the peak hour (it needs
+  `rateA` × 5), so the case is built with `--raise-ratings`: the branches
+  loaded above `rateA` in the resulting power flow get `rateA` (and
+  `rateB`, `rateC` where lower) raised to the flow over 0.8, as
+  `build_wecc240_2018.py` does (23 branches at the default hour; the build
+  lists them). Without `--raise-ratings` the build fails instead.
+- Costs: a node's generator gets the `Pmax`-weighted cost of the node's 2018
+  generators of its category, else that of the category; oil and other get
+  the most expensive 2018 gas cost (`TG`); pumped storage, solar, wind and
+  hydro cost 0. The 2018 reactive limits of each node's generators go to its
+  new generators.
 - Battery storage comes from the battery data of `slacgismo/regrow` PR #91
   (EIA-860/923): one zero-cost generator per node in
-  `node_reactive_bounds_by_year.csv` for 2020 (28 nodes), with `Pmin` the
-  negative of the maximum charge rate, `Pmax` the maximum discharge rate,
-  `Q` limits ±`reactive_MVAR`, and `Pg` the node's mean net output for
-  January 2020 from `node_generation_by_month.csv` (0 where the node did not
-  report). The `battery_storage` category of `eudoxys/generation` is not
-  used.
+  `node_reactive_bounds_by_year.csv` for the year, with `Pmin` the negative
+  of the maximum charge rate, `Pmax` the maximum discharge rate, `Q` limits
+  ±`reactive_MVAR`, and `Pg` the node's mean net output for the month from
+  `node_generation_by_month.csv` (0 where the node did not report).
+- Canadian and Mexican generators are dispatched to the node files'
+  `dispatch_MW` (Alberta, which has no generator in the case, gets one).
 
-Its power flow converges, with two buses above 1.1 pu (6304 LARAMIE,
-6401 TRACYSPP) and 13 branches above `rateA`; these are reported by the
-build script but not fixed. The hourly time-series model, designed to be
-run using `pypower_sim`, is in progress.
+Its OPF and power flow solve; the power flow has no branch above `rateA`
+and voltages within 0.900-1.103 pu. The hourly time-series model, designed
+to be run using `pypower_sim`, is in progress.
+
+### Areas
+
+The 2020 case's areas are the EIA Form 930 balancing authorities, replacing
+the four NREL areas of the 2011 and 2018 cases (as in `eudoxys/ppedit`
+issue #90). `wecc240_ba.csv` gives the code of each bus (`BUS_I,NAME,BA,NOTE`,
+the note saying why); `build_wecc240_2020.py` applies it before saving
+(`_areas.balancing_authorities`), and `python3 wecc240/_areas.py` applies it
+to the committed case in place. Areas are numbered in alphabetical order of
+the codes, the `areas` rows get their default price reference buses, and the
+geodata `BA` column is set to the code. Areas are not used by the solver.
+
+| area | BA | name | buses |
+|---:|---|---|---:|
+| 1 | AESO | Alberta Electric System Operator | 2 |
+| 2 | AZPS | Arizona Public Service | 7 |
+| 3 | BANC | Balancing Authority of Northern California | 8 |
+| 4 | BCHA | BC Hydro | 4 |
+| 5 | BPAT | Bonneville Power Administration | 31 |
+| 6 | CEN | CENACE (Baja California) | 2 |
+| 7 | CISO | California ISO | 106 |
+| 8 | IID | Imperial Irrigation District | 2 |
+| 9 | IPCO | Idaho Power | 5 |
+| 10 | LDWP | Los Angeles Department of Water and Power | 26 |
+| 11 | NEVP | Nevada Power (NV Energy) | 8 |
+| 12 | NWMT | NorthWestern Energy | 6 |
+| 13 | PACE | PacifiCorp East | 16 |
+| 14 | PACW | PacifiCorp West | 1 |
+| 15 | PNM | Public Service Company of New Mexico | 4 |
+| 16 | PSCO | Public Service Company of Colorado | 2 |
+| 17 | PSEI | Puget Sound Energy | 2 |
+| 18 | SRP | Salt River Project | 4 |
+| 19 | SWPW | SPP RTO West (WACM until April 2026) | 4 |
+| 20 | WALC | WAPA Desert Southwest | 3 |
+
+A bus is assigned to the balancing authority of the substation or plant it
+is named for (by voltage where a station is shared: Four Corners 500 kV is
+AZPS and 345/230 kV PNM; Garrison 500 kV is BPAT and 230 kV NWMT; Sylmar,
+Cottonwood and Summit have a bus per owner). The case's aggregate load
+buses take the balancing authority of the station they are placed at, so an
+area's load is not that balancing authority's Form 930 demand (the load
+scaling above uses county splits, not these areas): for example, the
+northern Washington load at NORTH (PSEI) also serves SCL and TPWR, and BPAT
+includes the Portland and Willamette Valley loads of PGE and PACW at
+WILLAMET and WCASCADE. Balancing authorities with no bus of their own (AVA,
+CHPD, DOPD, EPE, GCPD, PGE, SCL, TEPC, TIDC, TPWR and the generation-only
+ones) have no area.
 
 ### Load Curtailment
 
@@ -88,16 +151,17 @@ the PSS/E RAW file by the build scripts below; they replace the earlier
 | `wecc240_map.py` | the case with its `geodata` and `geotags` |
 | `wecc240_2011.py` | the 2011 case with geodata; Pacific DC Intertie and Intermountain lines as `dcline` rows; generated, don't edit |
 | `wecc240_2018.py` | `wecc240_2011.py` with generator costs by type, branch ratings, voltage fixes and `rateA` margins; generated, don't edit |
-| `wecc240_2020.py` | `wecc240_2018.py` with loads and generation at 2020-01-01 00:00 UTC; generated, don't edit |
+| `wecc240_2020.py` | `wecc240_2018.py` network with the EIA-860 fleet, loads and OPF dispatch at the 2020 peak CAISO net load hour; generated, don't edit |
 | `wecc240_bus.csv` | bus index (row, PSS/E bus number, name, PYPOWER `bus_i`) |
 | `wecc240_cost.csv` | one cost row per generator (`id` is bus name and PSS/E generator ID) |
 | `wecc240_gentypes.csv` | polynomial costs (`c2,c1,c0`) by generator type |
 | `wecc240_geodata.csv` | bus locations (same as `gis/wecc240.csv`) |
+| `wecc240_ba.csv` | EIA-930 balancing authority of each bus (`BUS_I,NAME,BA,NOTE`); areas of the 2020 case |
 | `wecc240_gentypes.py` | derives `wecc240_gentypes.csv` from `data/WECC240_2018_Generation_scheduling.xlsx` (needs `openpyxl`) |
 | `build_wecc240_2011.py` | builds `wecc240_case.py` and `wecc240_2011.py` from `wecc240_case.raw` and `wecc240_geodata.csv` |
 | `build_wecc240_2018.py` | builds `wecc240_2018.py` from `wecc240_2011.py` and the cost CSVs |
 | `build_wecc240_2020.py` | builds `wecc240_2020.py` from `wecc240_2018.py`, `eudoxys/loads`, `eudoxys/generation` and `slacgismo/regrow` battery data |
-| `_case.py`, `_psse.py`, `_dcline.py` | private modules used by the build scripts: case model, PSS/E RAW reader, DC line solver |
+| `_case.py`, `_psse.py`, `_dcline.py`, `_areas.py` | private modules used by the build scripts: case model, PSS/E RAW reader, DC line solver, balancing authority areas |
 
 ### Data flow
 
@@ -144,10 +208,13 @@ flowchart LR
 
     c2018 --> b2020
     loads -- "county net load, node factors" --> b2020
-    gendata -- "node generation and capacity by category" --> b2020
+    gendata -- "county generation and capacity by category" --> b2020
     foreign -- "load_MW, dispatch_MW" --> b2020
     types -- "costs of added generators" --> b2020
     batteries[/"slacgismo/regrow data/batteries/processed"/] -- "node battery limits, monthly net energy" --> b2020
+    eia860[/"slacgismo/regrow EIA-860"/] -- "CAISO shares, county BA shares" --> b2020
+    form930[/"data/form930_load_2020.csv.gz"/] -- "BA peaks" --> b2020
+    caiso[/"eudoxys/loads loads/caiso"/] -- "CAISO load (peak net load hour)" --> b2020
     b2020 -- "loads, dispatch, added generators" --> c2020
 ```
 
@@ -200,15 +267,15 @@ Rebuild the cases from the RAW file with
 
     python3 wecc240/build_wecc240_2011.py
     python3 wecc240/build_wecc240_2018.py
-    python3 wecc240/build_wecc240_2020.py
+    python3 wecc240/build_wecc240_2020.py --raise-ratings
 
 (only the last two are needed after changing the costs).
 `build_wecc240_2020.py` reads `loads/wecc` of `eudoxys/loads` and
 `data/wecc` of `eudoxys/generation` from sibling clones of those
 repositories if present, otherwise from GitHub (about 200 MB), and the
-battery data in `data/batteries/processed` of `slacgismo/regrow` (sibling
-clone, otherwise PR #91's head commit on GitHub); use `-l FOLDER`,
-`-g FOLDER` and `-b FOLDER` to name other copies, and `-t TIMESTAMP` for
+EIA-860 workbooks, node coordinates and battery data of `slacgismo/regrow`
+(sibling clone, otherwise PR #91's head commit on GitHub); use `-l FOLDER`,
+`-g FOLDER`, `-r FOLDER`, `-b FOLDER` and `-e CSV` to name other copies (reading the EIA-860 workbooks needs `openpyxl`), and `-t TIMESTAMP` for
 another hour.
 
 ### Provenance of `wecc240_gentypes.csv`
