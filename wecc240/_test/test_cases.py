@@ -24,7 +24,7 @@ def test_wecc240_2018_opf_pf():
     assert solver.solve_pf(), "PF failed"
 
 def test_wecc240_2020_opf_pf():
-    """The 2020 case (1 January 2020 00:00 UTC) solves both OPF and power flow"""
+    """The 2020 case (peak CAISO net load hour) solves both OPF and power flow"""
     model = PPModel(name="wecc240_2020",case=wecc240_2020)
     solver = PPSolver(model)
     assert solver.solve_opf(), "OPF failed"

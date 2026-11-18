@@ -7,11 +7,13 @@ WECC 240 bus models
 Electricity Coordinating Council (WECC) interconnection for power flow, OPF
 and quasi-steady time-series studies with `pypower` and `pypower_sim`. The
 static 2011 and 2018 cases are generated from the original PSS/E case and
-NREL's 2018 generation update; the static 2020 case is the 2018 case at 1
-January 2020 00:00 UTC, with node net loads from county-level load models
-(`eudoxys/loads`), node generation by fuel category from EIA data
-(`eudoxys/generation`), battery storage from EIA-860/923
-(`slacgismo/regrow`), and Canadian and Mexican utility data. Hourly time
+NREL's 2018 generation update; the static 2020 case is the 2018 network at
+the hour of the 2020 peak CAISO net load, with node net loads from
+county-level load models (`eudoxys/loads`), the EIA-860 generator fleet
+assigned to nodes by REGROW's nearest-node method with county capacity and
+output from EIA data (`eudoxys/generation`), battery storage from
+EIA-860/923 (`slacgismo/regrow`), Canadian and Mexican utility data, and an
+OPF dispatch. Hourly time
 series for 2020 are in progress.
 
 Note that "WECC 240" is a misnomer: the more recent models have 243 buses.
@@ -87,8 +89,9 @@ has no generator costs, so only its power flow can be solved):
   as converted to PYPOWER, with the HVDC lines as explicit DC lines.
 - `wecc240.wecc240_2018`: the 2011 model with NREL's 2018 generator costs,
   branch ratings and voltage fixes.
-- `wecc240.wecc240_2020`: the 2018 model at 1 January 2020 00:00 UTC, with
-  node net loads and node generation by fuel category for that hour. The
+- `wecc240.wecc240_2020`: the 2018 network at the 2020 peak CAISO net load
+  hour (2020-09-06 18:00 PDT), with node net loads, the EIA-860 fleet and an
+  OPF dispatch for that hour. The
   time-series model is in progress (see [TODO.md](TODO.md)).
 
 The roadmap is in [TODO.md](TODO.md).

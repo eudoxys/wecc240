@@ -11,8 +11,9 @@ specific to this package.
 Reduced-network (243-bus) PYPOWER models of the WECC interconnection. The
 static 2011 and 2018 cases are generated PYPOWER case files built from the
 2011 PSS/E RAW case and NREL's 2018 generation scheduling data; the static
-2020 case is the 2018 case at 1 January 2020 00:00 UTC with node loads from
-`eudoxys/loads` and node generation from `eudoxys/generation`. Hourly 2020
+2020 case is the 2018 network at the 2020 peak CAISO net load hour with node
+loads from `eudoxys/loads`, the EIA-860 fleet at REGROW's nearest nodes with
+capacity and output from `eudoxys/generation`, and an OPF dispatch. Hourly 2020
 time series are in progress. Python 3.12, alpha, unreleased (`version = "0.0.0"`).
 
 - Docs site: https://www.eudoxys.com/wecc240 (pdoc from docstrings)
@@ -80,9 +81,9 @@ large data.
 ## Known rough edges (don't "fix" silently; mention or ask)
 
 - The `wecc240` CLI fails when installed (#5).
-- `wecc240_2020.py` power flow has two buses above 1.1 pu (6304, 6401)
-  and 13 branches above `rateA`; `build_wecc240_2020.py` reports them but
-  does not fix them.
+- `build_wecc240_2020.py` raises `rateA` on the branches its dispatch
+  loads above the 2018 rating (21 at the default hour), because the OPF is
+  infeasible with the 2018 ratings; the ratings need review.
 - `wecc240.WECC240_2011` / `WECC240_2018` are case dicts built at import
   time, not classes (#12).
 - `aggregate_*.py` and `viewer.py` disagree on 2020 vs 2025 file names, and
