@@ -39,6 +39,7 @@ Baja California), 243 buses; time series 2018–2022 hourly, UTC.
 | 11 | Storage is scheduled for the CAISO duck curve: charge 09:00–15:00, discharge 15:00–21:00 (planned, Milestone 4). |
 | 12 | Load curtailment has three regimes (none; level 0 at 10% of node load; level 1 at 15% of area load) triggered by load within 10% / 15% of import plus generation (planned, Milestone 5). |
 | 13 | The 2020 case is built from `wecc240_2018()` by `build_wecc240_2020.py` (resolves open question 1, 2026-11-17): bus `PD` from `eudoxys/loads` county net load (calibrated gross less DG) on the county-to-node factors, plus Canadian/Mexican `load_MW`; county loads scaled to the Form 930 balancing authority peaks with county splits from EIA-860 plant balancing authorities (2026-11-18); US fleet replaced by `eudoxys/generation` node capacity (dispatchable `Pmax`) and output (solar and wind `Pg = Pmax`) on its county-to-node map (2026-11-18), one generator per node and category at the node's 2018 cost of the category, else the category's, oil and other at the `TG` gas cost; dispatchable `Pg`, `Qg` and voltages from an OPF with the others fixed, and, with `--raise-ratings`, branches above `rateA` in that dispatch raised to flow/0.8; default hour the 2020 peak CAISO net load (2026-11-18); battery storage from `slacgismo/regrow` PR #91 (one zero-cost generator per battery node, `P` from −max charge to max discharge, `Q` ±`reactive_MVAR`, `Pg` the month's mean net output), not from `eudoxys/generation` (2026-11-18). |
+| 14 | The 2020 case's areas are the EIA Form 930 balancing authorities that have buses in the case (2026-11-18, as `eudoxys/ppedit` #90): each bus takes the code of the substation or plant it is named for in `wecc240_ba.csv` (split by voltage or owner at shared stations), areas are numbered in alphabetical order of the codes with default price reference buses, and the geodata `BA` column holds the code; set by `_areas.balancing_authorities` in `build_wecc240_2020.py`. The 2011 and 2018 cases keep the four NREL areas. |
 
 ## Conventions inherited
 
@@ -63,6 +64,7 @@ wecc240/
   _case.py               Case: read/write .py/.json/.glm/.raw, validate, solve
   _psse.py               parse_raw(): PSS/E RAW reader
   _dcline.py             add_dclines(): DC-line userfcn for the solver
+  _areas.py              balancing_authorities(case): areas from wecc240_ba.csv
   build_wecc240_2011.py  builds wecc240_case.py, wecc240_2011.py
   build_wecc240_2018.py  builds wecc240_2018.py
   build_wecc240_2020.py  builds wecc240_2020.py

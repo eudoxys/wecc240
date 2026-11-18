@@ -166,7 +166,17 @@ the slack generation, the buses outside their voltage limits and the number
 of branches loaded above `rateA`, but does not change the case to remove
 them.
 
-Uses `_case.py` and `_dcline.py`.
+Areas
+-----
+
+The areas are the EIA Form 930 balancing authorities: before saving, each
+bus is put in the area of its code in `wecc240_ba.csv`
+(`_areas.balancing_authorities`), areas are numbered in alphabetical order
+of the codes, the `areas` rows get their default price reference buses, and
+the geodata `BA` column is set to the code. Areas do not change the
+solution.
+
+Uses `_case.py`, `_dcline.py` and `_areas.py`.
 """
 
 import argparse
@@ -179,6 +189,7 @@ import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 from _case import Case # pylint: disable=wrong-import-position,import-error
+from _areas import balancing_authorities # pylint: disable=wrong-import-position,import-error
 
 YEAR = 2020
 """Year of the default hour (peak CAISO net load)"""
@@ -664,6 +675,7 @@ def main():
     if not result["success"]:
         raise ValueError("power flow failed")
     check = case.solve("opf")
+    areas = balancing_authorities(case)
     errors = [x["message"] for x in case.validate() if x["level"] == "error"]
     if errors:
         raise ValueError("; ".join(errors))
@@ -703,6 +715,8 @@ def main():
         f"{sum(x[5] for x in storage):.1f} MW scheduled)")
     print(f"  dispatch OPF solved with rateA x{factor:g}; rateA raised on {len(raised)} branches "
         "loaded above it: " + ", ".join(f"{f}-{t} {a:g}->{b:g}" for f,t,a,b in raised))
+    print(f"  {len(areas)} areas (EIA-930 balancing authorities from wecc240_ba.csv): "
+        + ", ".join(f"{n} {ba}" for ba,n in areas.items()))
     print(f"  OPF of the saved case: {'solved' if check['success'] else 'FAILED'}")
     print(f"  power flow: Vm {vmin:.3f}-{vmax:.3f} pu, buses outside Vmin-Vmax: {outside}; "
         f"{overloaded} branches above rateA")
