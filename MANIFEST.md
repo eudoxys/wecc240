@@ -17,7 +17,7 @@ Update this file in the same PR that adds, moves, or deletes a file.
 - Change a static case: edit `wecc240/build_wecc240_2011.py` / `build_wecc240_2018.py` or their CSV inputs, rerun them, run `pytest`; never edit `wecc240_2011.py` / `wecc240_2018.py` by hand
 - Change generator costs: `wecc240/wecc240_gentypes.py` (needs `openpyxl`) rewrites `wecc240_gentypes.csv`; then rebuild 2018
 - Change the PSS/E reader or case model: `wecc240/_psse.py`, `wecc240/_case.py`; DC lines in `wecc240/_dcline.py`
-- Change the 2020 case: edit `wecc240/build_wecc240_2020.py` and rerun it (reads `eudoxys/loads` `loads/wecc`, `eudoxys/generation` `data/wecc` and `slacgismo/regrow` EIA-860, nodes and battery data from sibling clones or GitHub, `-l`/`-g`/`-r`/`-b` to override, `-t` for the hour); never edit `wecc240_2020.py` by hand
+- Change the 2020 case: edit `wecc240/build_wecc240_2020.py` and rerun it (reads `eudoxys/loads` `loads/wecc`, `eudoxys/generation` `data/wecc` and `slacgismo/regrow` EIA-860, nodes and battery data from sibling clones or GitHub, `-l`/`-g`/`-r`/`-b`/`-e` to override, `-t` for the hour); never edit `wecc240_2020.py` by hand
 - Change the CLI: `wecc240/wecc240.py` (to become `wecc240/cli.py`, #5); `pyproject.toml` `[project.scripts]`
 - Rebuild Canadian/Mexican node loads: `wecc240/Canada/aeso.py`, `bchydro.py`, `wecc240/Mexico/mexicali.py` (run from their folder)
 - Add a test: `wecc240/_test/test_<name>.py`; describe it in `wecc240/_test/README.md`
@@ -40,7 +40,7 @@ Update this file in the same PR that adds, moves, or deletes a file.
 | `wecc240/_dcline.py` | DC-line model for the solver | private |
 | `wecc240/build_wecc240_2011.py` | builds 2011 and `wecc240_case.py` from the RAW file | script |
 | `wecc240/build_wecc240_2018.py` | builds the 2018 case | script |
-| `wecc240/build_wecc240_2020.py` | builds the 2020 case from the 2018 case, `eudoxys/loads` node net loads, `eudoxys/generation` county generation and capacity, and the `slacgismo/regrow` EIA-860 fleet and battery storage | script; reads ~200 MB of sibling-repository data |
+| `wecc240/build_wecc240_2020.py` | builds the 2020 case from the 2018 case, `eudoxys/loads` node net loads scaled to Form 930 balancing authority peaks, `eudoxys/generation` county generation and capacity, and the `slacgismo/regrow` EIA-860 fleet and battery storage | script; reads ~200 MB of sibling-repository data |
 | `wecc240/wecc240_gentypes.py` | fits cost curves by generator type | script; needs `openpyxl` |
 | `wecc240/aggregate_*.py` | build node time series (`total`, `net`, `gens`, `solar`, `wind`) | scripts; run from `wecc240/`; bugs #8 #9 #10 |
 | `wecc240/viewer.py` | marimo viewer of node time series | `marimo run wecc240/viewer.py`; file names wrong (#10) |
@@ -64,6 +64,8 @@ Update this file in the same PR that adds, moves, or deletes a file.
 | Path | Purpose | Notes |
 |---|---|---|
 | `wecc240/data/README.md` | data-flow diagram | lacks provenance (#14) |
+| `wecc240/data/form930_load.py` | downloads the Form 930 hourly load of the WECC balancing authorities (`eia.Form930`) | needs an EIA API key and eia.gov access |
+| `wecc240/data/form930_load_2020.csv.gz` | 2020 Form 930 hourly load by balancing authority, MW | read by `build_wecc240_2020.py`; raw (spikes kept) |
 | `wecc240/data/*.py` | scripts building county/node/state intermediates | many `*_deprecated.py` (#13) |
 | `wecc240/data/deprecated/*.py` | superseded scripts | |
 | `wecc240/data/*.csv` | intermediates and calibration tables | up to 89 MB; don't read, use `head` |

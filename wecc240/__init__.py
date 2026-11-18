@@ -12,7 +12,8 @@ of the same name that returns the PYPOWER case `dict`.
   by type, branch ratings and voltage fixes (NREL 2018 update).
 
 - `wecc240.wecc240_2020.wecc240_2020`: the 2018 network at the 2020 peak
-  CAISO net load hour, with node net loads from `eudoxys/loads`, the
+  CAISO net load hour, with node net loads from `eudoxys/loads` scaled to
+  Form 930 balancing authority peaks, the
   EIA-860 fleet at REGROW's nearest nodes with capacity and output from
   `eudoxys/generation`, battery storage from `slacgismo/regrow`, and an OPF
   dispatch (see `wecc240/build_wecc240_2020.py`).

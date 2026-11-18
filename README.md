@@ -9,7 +9,8 @@ and quasi-steady time-series studies with `pypower` and `pypower_sim`. The
 static 2011 and 2018 cases are generated from the original PSS/E case and
 NREL's 2018 generation update; the static 2020 case is the 2018 network at
 the hour of the 2020 peak CAISO net load, with node net loads from
-county-level load models (`eudoxys/loads`), the EIA-860 generator fleet
+county-level load models (`eudoxys/loads`) scaled to the EIA Form 930
+balancing authority peaks, the EIA-860 generator fleet
 assigned to nodes by REGROW's nearest-node method with county capacity and
 output from EIA data (`eudoxys/generation`), battery storage from
 EIA-860/923 (`slacgismo/regrow`), Canadian and Mexican utility data, and an

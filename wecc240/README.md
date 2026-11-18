@@ -35,6 +35,15 @@ September; `-t` sets another hour), built by `build_wecc240_2020.py`:
   `node_estimate_cf.csv`, plus the `load_MW` of the Canadian and Mexican
   node files. A node's load is split among its buses by their 2018 `PD`,
   keeping each bus's `QD/PD`.
+- County loads are scaled so that each US balancing authority's 2020 peak
+  matches its EIA Form 930 demand peak (`data/form930_load_2020.csv.gz`,
+  written by `data/form930_load.py` with `eia.Form930` of `eudoxys/eia`;
+  spikes and bad hours are dropped first). Counties are split among
+  balancing authorities by the nameplate share of the balancing authorities
+  of their EIA-860 plants; counties without plants take the split of the
+  counties sharing their load node. Total load at the default hour is
+  133.0 GW (140.5 GW unscaled). PSEI has almost no 2020 Form 930 load data,
+  so its counties are not scaled.
 - The US generator fleet is replaced by the EIA-860 fleet of the year (the
   WECC generators operating at the hour, from the EIA-860 workbooks in
   `slacgismo/regrow`), each plant assigned to its nearest node by
@@ -49,9 +58,9 @@ September; `-t` sets another hour), built by `build_wecc240_2020.py`:
   others fixed (solar, wind, batteries, Canada and Mexico), and its `Pg`,
   `Qg` and voltages become the setpoints. The OPF is
   infeasible with the 2018 branch ratings at the peak hour (it needs
-  `rateA` × 2), so the branches loaded above `rateA` in the resulting power
+  `rateA` × 1.5), so the branches loaded above `rateA` in the resulting power
   flow get `rateA` (and `rateB`, `rateC` where lower) raised to the flow
-  over 0.8, as `build_wecc240_2018.py` does (21 branches at the default
+  over 0.8, as `build_wecc240_2018.py` does (18 branches at the default
   hour; the build lists them).
 - Solution: the OPF (PIPS, with the HVDC lines) is then solved with the
   case's own limits and raised ratings, and its solution is saved to the
@@ -72,7 +81,7 @@ September; `-t` sets another hour), built by `build_wecc240_2020.py`:
   `dispatch_MW` (Alberta, which has no generator in the case, gets one).
 
 The saved OPF solution has no branch above `rateA` and voltages within
-0.900-1.100 pu (cost 2,198,990 $/h, generation 143,899 MW); a power flow
+0.900-1.100 pu (cost 1,566,530 $/h, generation 136,604 MW); a power flow
 from it converges. The hourly time-series model, designed
 to be run using `pypower_sim`, is in progress.
 
@@ -165,6 +174,7 @@ flowchart LR
     batteries[/"slacgismo/regrow data/batteries/processed"/] -- "node battery limits, monthly net energy" --> b2020
     eia860[/"slacgismo/regrow EIA-860, data/wecc240/nodes.csv"/] -- "fleet, nearest node" --> b2020
     caiso[/"eudoxys/loads loads/caiso"/] -- "CAISO load (peak net load hour)" --> b2020
+    form930[/"data/form930_load_2020.csv.gz"/] -- "BA peaks" --> b2020
     b2020 -- "loads, dispatch, added generators" --> c2020
 ```
 
@@ -225,7 +235,7 @@ Rebuild the cases from the RAW file with
 repositories if present, otherwise from GitHub (about 200 MB), and the
 EIA-860 workbooks, node coordinates and battery data of `slacgismo/regrow`
 (sibling clone, otherwise PR #91's head commit on GitHub); use `-l FOLDER`,
-`-g FOLDER`, `-r FOLDER` and `-b FOLDER` to name other copies (reading the EIA-860 workbooks needs `openpyxl`), and `-t TIMESTAMP` for
+`-g FOLDER`, `-r FOLDER`, `-b FOLDER` and `-e CSV` to name other copies (reading the EIA-860 workbooks needs `openpyxl`), and `-t TIMESTAMP` for
 another hour.
 
 ### Provenance of `wecc240_gentypes.csv`

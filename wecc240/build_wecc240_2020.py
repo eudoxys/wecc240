@@ -1,6 +1,6 @@
 """Build wecc240/wecc240_2020.py: the WECC 240 case at an hour of 2020
 
-Syntax: python3 wecc240/build_wecc240_2020.py [-t TIMESTAMP] [-l FOLDER] [-g FOLDER] [-r FOLDER] [-b FOLDER]
+Syntax: python3 wecc240/build_wecc240_2020.py [-t TIMESTAMP] [-l FOLDER] [-g FOLDER] [-r FOLDER] [-b FOLDER] [-e CSV]
 
 Options
 -------
@@ -19,6 +19,9 @@ Options
   `REGROW_LOCAL` in a sibling clone, otherwise `REGROW_URL`)
 - `-b FOLDER`, `--batteries FOLDER`: `data/batteries/processed` folder of
   `slacgismo/regrow` (default that folder under `--regrow`)
+- `-e CSV`, `--form930 CSV`: Form 930 hourly load of the WECC balancing
+  authorities (default `data/form930_load_{year}.csv.gz`, written by
+  `data/form930_load.py`)
 
 Description
 -----------
@@ -35,6 +38,9 @@ flowchart LR
     dg[/"loads: county_dg.csv.gz"/] -->|county DG MW| sub
     sub -->|county net MW| mul((x))
     cf[/"loads: node_estimate_cf.csv"/] --> mul
+    form930[/"data/form930_load_{year}.csv.gz"/] -->|BA peaks| scale((scale))
+    eia860ba[/"regrow: EIA-860 plant BA codes"/] -->|county BA shares| scale
+    scale -->|county factors| mul
     mul -->|Σ county| add((+))
     foreign[/"Canada/*.csv Mexico/*.csv"/] -->|load_MW| add
     add -->|node net load| b2020([build_wecc240_2020.py])
@@ -71,12 +77,28 @@ Loads
    generation (`county_dg.csv.gz`, the DG that calibration adds to retail
    energy), so that its monthly energy is the EIA 861M retail energy.
 
-2. The county net loads are allocated to nodes with the contribution
+2. Each county's net load is scaled so that each balancing authority's
+   annual peak matches its Form 930 demand peak of the year
+   (`data/form930_load_{year}.csv.gz`, from `eia.Form930` of `eudoxys/eia`).
+   A county's load is split among balancing authorities by the nameplate
+   share of its EIA-860 plants' balancing authorities (among those in the
+   Form 930 file); a county with no such plant takes the split of the
+   counties sharing its `load` node in `wecc240/data/county_node_map.csv`,
+   else its state's. Each authority's factor is its Form 930 peak over the
+   peak of its modeled load (the sum of its county shares over the year),
+   and a county's factor is the share-weighted mean of its authorities'
+   factors. Form 930 hours that are not positive or are spikes (above
+   `SPIKE_HOURS` times the median of the 9 hours around them, or
+   `SPIKE_DAYS` times the median of the same hour on the 7 days around
+   them) are dropped before taking the peak; an authority with less than
+   `MIN_HOURS` of the year left (PSEI in 2020) keeps a factor of 1.
+
+3. The county net loads are allocated to nodes with the contribution
    factors of `node_estimate_cf.csv` (as `node_estimate.py` does in
    `eudoxys/loads`). The `load_MW` of the Canadian and Mexican node files
    (`FOREIGN`) is added to those nodes.
 
-3. A node's load is split among its buses in proportion to their `PD` in
+4. A node's load is split among its buses in proportion to their `PD` in
    the 2018 case, and each bus keeps its 2018 `QD/PD` ratio (`DESIGN.md`
    decision 9). Buses of nodes that get no load are set to `PD = QD = 0`.
 
@@ -216,6 +238,15 @@ MAX_LOADING = 0.8
 RELAX = [1.0,1.25,1.5,2.0,3.0,5.0]
 """Factors on `rateA` tried in turn until the dispatch OPF solves"""
 
+SPIKE_HOURS = 1.25
+"""Largest Form 930 load over the median of the 9 hours around it"""
+
+SPIKE_DAYS = 1.5
+"""Largest Form 930 load over the median of the same hour on the 7 days around it"""
+
+MIN_HOURS = 0.8
+"""Smallest fraction of the year's hours with good Form 930 load for a peak"""
+
 PEAKER = "TG"
 """2018 gas type whose cost is given to oil and other"""
 
@@ -348,11 +379,70 @@ def caiso_peak(loads,generation,units,year):
         net = net - caiso.reindex(net.index).fillna(0.0)
     return net.idxmax(),net.max()
 
-def node_loads(loads,timestamp):
-    """Node net loads (MW) at an hour"""
-    gross = hour(loads,"wecc_estimate.csv.gz",timestamp)
-    dg = hour(loads,"county_dg.csv.gz",timestamp)
-    net = gross.sub(dg.reindex(gross.index).fillna(0.0))
+def county_net(loads,year):
+    """County net loads (MW): calibrated gross load less DG, hourly over a year"""
+    gross = pd.read_csv(path(loads,"wecc_estimate.csv.gz"),index_col=0,parse_dates=[0])
+    dg = pd.read_csv(path(loads,"county_dg.csv.gz"),index_col=0,parse_dates=[0])
+    gross = gross[gross.index.year == year]
+    return gross.sub(dg.reindex(index=gross.index,columns=gross.columns).fillna(0.0))
+
+def county_ba(units,counties,authorities):
+    """Share of each county's load in each balancing authority: the nameplate
+    share of the county's EIA-860 units by plant balancing authority, among
+    `authorities`; counties with none take the split of the counties sharing
+    their `load` node in `county_node_map.csv`, else their state's split"""
+    x = units[units["ba"].isin(authorities)]
+    def split(rows):
+        mw = rows.groupby("ba")["MW"].sum()
+        return mw/mw.sum() if mw.sum() > 0 else None
+    loadnode = {r["county_st"].casefold():r["load"] for r in read(os.path.join("data","county_node_map.csv"))}
+    result,source = {},{}
+    for county in counties:
+        key = county.casefold()
+        shares = split(x[x["county"] == key])
+        source[county] = "plants"
+        if shares is None and key in loadnode:
+            peers = [c for c,n in loadnode.items() if n == loadnode[key]]
+            shares = split(x[x["county"].isin(peers)])
+            source[county] = "load node"
+        if shares is None:
+            shares = split(x[x["county"].str.endswith(" " + key.rsplit(" ",1)[1])])
+            source[county] = "state"
+        if shares is None:
+            raise ValueError(f"county {county} has no balancing authority")
+        result[county] = shares
+    return pd.DataFrame(result).T.fillna(0.0),source
+
+def form930_peaks(form930):
+    """Annual peak of each Form 930 load column without bad data: hours not
+    above zero, more than `SPIKE_HOURS` times the median of the 9 hours
+    around them, or more than `SPIKE_DAYS` times the median of the same hour
+    on the 7 days around them, are dropped; columns with fewer than
+    `MIN_HOURS` of the year's hours left have no peak (NaN)"""
+    load = form930.where(form930 > 0)
+    hours = load/load.rolling(9,center=True,min_periods=5).median()
+    days = load/load.groupby(load.index.hour).transform(
+        lambda x:x.rolling(7,center=True,min_periods=4).median())
+    clean = load.where((hours <= SPIKE_HOURS) & (days <= SPIKE_DAYS))
+    peaks = clean.max()
+    peaks[clean.count() < MIN_HOURS*len(clean)] = float("nan")
+    return peaks,load.count()-clean.count()
+
+def ba_scale(net,shares,form930):
+    """County load scale factors fitting each balancing authority's annual
+    peak to Form 930 (1 for authorities without a Form 930 peak), and the
+    authorities' modeled and Form 930 peaks"""
+    model = net[shares.index].dot(shares)
+    peak,dropped = form930_peaks(form930[shares.columns])
+    peaks = pd.DataFrame({"model":model.max(),"form930":peak,"dropped":dropped})
+    peaks["factor"] = (peaks["form930"]/peaks["model"]).fillna(1.0)
+    return shares.dot(peaks["factor"]),peaks
+
+def node_loads(loads,timestamp,net,scale):
+    """Node net loads (MW) at an hour, with county scale factors"""
+    if timestamp not in net.index:
+        raise ValueError(f"wecc_estimate.csv.gz has no row for {timestamp}")
+    net = net.loc[timestamp]*scale.reindex(net.columns).fillna(1.0)
     cf = pd.read_csv(path(loads,"node_estimate_cf.csv"))
     missing = sorted(set(cf["county_st"]) - set(net.index))
     if missing:
@@ -434,6 +524,7 @@ def main():
     parser.add_argument("-g","--generation",help="eudoxys/generation data/wecc folder")
     parser.add_argument("-r","--regrow",help="slacgismo/regrow root folder")
     parser.add_argument("-b","--batteries",help="slacgismo/regrow data/batteries/processed folder")
+    parser.add_argument("-e","--form930",help="Form 930 hourly load CSV (default data/form930_load_{year}.csv.gz)")
     args = parser.parse_args()
     loads = args.loads or (LOADS_LOCAL if os.path.exists(LOADS_LOCAL) else LOADS_URL)
     generation = args.generation or (GENERATION_LOCAL if os.path.exists(GENERATION_LOCAL) else GENERATION_URL)
@@ -456,7 +547,12 @@ def main():
         raise ValueError(f"fleet nodes {unknown} have no bus")
 
     # loads
-    load = node_loads(loads,timestamp)
+    form930 = pd.read_csv(args.form930 or os.path.join(HERE,"data",f"form930_load_{timestamp.year}.csv.gz"),
+        index_col=0,parse_dates=[0])
+    net = county_net(loads,timestamp.year)
+    shares,ba_source = county_ba(units,net.columns,list(form930.columns))
+    scale,peaks = ba_scale(net,shares,form930)
+    load = node_loads(loads,timestamp,net,scale)
     unknown = sorted(set(load.index) - set(nodes))
     if unknown:
         raise ValueError(f"load nodes {unknown} have no bus")
@@ -658,6 +754,12 @@ def main():
         f"{case.size()}")
     print(f"  load {sum(b[2] for b in buses):.0f} MW at {len(load)} nodes; "
         f"buses set to no load: {unloaded}")
+    print(f"  county loads scaled to Form 930 {timestamp.year} balancing authority peaks "
+        f"(county splits from plants {sum(v == 'plants' for v in ba_source.values())}, load node "
+        f"{sum(v == 'load node' for v in ba_source.values())}, state {sum(v == 'state' for v in ba_source.values())}):")
+    for ba,row in peaks.iterrows():
+        print(f"    {ba:5s} model peak {row['model']:8.0f} MW, Form 930 {row['form930']:8.0f} MW "
+            f"({row['dropped']:.0f} bad hours), factor {row['factor']:.3f}")
     print(f"  generation {sum(g[1] for g in gens):.0f} MW (OPF), losses {opf['losses_MW']:.0f} MW")
     far = used.drop_duplicates("Plant Code")
     print(f"  fleet: {len(used)} of {len(units)} EIA-860 units (at {len(far)} plants, on "
