@@ -10,7 +10,8 @@ static 2011 and 2018 cases are generated from the original PSS/E case and
 NREL's 2018 generation update; the static 2020 case is the 2018 case at 1
 January 2020 00:00 UTC, with node net loads from county-level load models
 (`eudoxys/loads`), node generation by fuel category from EIA data
-(`eudoxys/generation`), and Canadian and Mexican utility data. Hourly time
+(`eudoxys/generation`), battery storage from EIA-860/923
+(`slacgismo/regrow`), and Canadian and Mexican utility data. Hourly time
 series for 2020 are in progress.
 
 Note that "WECC 240" is a misnomer: the more recent models have 243 buses.
