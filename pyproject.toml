@@ -14,6 +14,7 @@ wecc240 = [
     "wecc240_cost.csv",
     "wecc240_gentypes.csv",
     "wecc240_geodata.csv",
+    "wecc240_ba.csv",
     "wecc240_case.raw",
     ]
 

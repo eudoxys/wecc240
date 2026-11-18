@@ -77,6 +77,53 @@ Its OPF and power flow solve; the power flow has no branch above `rateA`
 and voltages within 0.900-1.103 pu. The hourly time-series model, designed
 to be run using `pypower_sim`, is in progress.
 
+### Areas
+
+The 2020 case's areas are the EIA Form 930 balancing authorities, replacing
+the four NREL areas of the 2011 and 2018 cases (as in `eudoxys/ppedit`
+issue #90). `wecc240_ba.csv` gives the code of each bus (`BUS_I,NAME,BA,NOTE`,
+the note saying why); `build_wecc240_2020.py` applies it before saving
+(`_areas.balancing_authorities`), and `python3 wecc240/_areas.py` applies it
+to the committed case in place. Areas are numbered in alphabetical order of
+the codes, the `areas` rows get their default price reference buses, and the
+geodata `BA` column is set to the code. Areas are not used by the solver.
+
+| area | BA | name | buses |
+|---:|---|---|---:|
+| 1 | AESO | Alberta Electric System Operator | 2 |
+| 2 | AZPS | Arizona Public Service | 7 |
+| 3 | BANC | Balancing Authority of Northern California | 8 |
+| 4 | BCHA | BC Hydro | 4 |
+| 5 | BPAT | Bonneville Power Administration | 31 |
+| 6 | CEN | CENACE (Baja California) | 2 |
+| 7 | CISO | California ISO | 106 |
+| 8 | IID | Imperial Irrigation District | 2 |
+| 9 | IPCO | Idaho Power | 5 |
+| 10 | LDWP | Los Angeles Department of Water and Power | 26 |
+| 11 | NEVP | Nevada Power (NV Energy) | 8 |
+| 12 | NWMT | NorthWestern Energy | 6 |
+| 13 | PACE | PacifiCorp East | 16 |
+| 14 | PACW | PacifiCorp West | 1 |
+| 15 | PNM | Public Service Company of New Mexico | 4 |
+| 16 | PSCO | Public Service Company of Colorado | 2 |
+| 17 | PSEI | Puget Sound Energy | 2 |
+| 18 | SRP | Salt River Project | 4 |
+| 19 | SWPW | SPP RTO West (WACM until April 2026) | 4 |
+| 20 | WALC | WAPA Desert Southwest | 3 |
+
+A bus is assigned to the balancing authority of the substation or plant it
+is named for (by voltage where a station is shared: Four Corners 500 kV is
+AZPS and 345/230 kV PNM; Garrison 500 kV is BPAT and 230 kV NWMT; Sylmar,
+Cottonwood and Summit have a bus per owner). The case's aggregate load
+buses take the balancing authority of the station they are placed at, so an
+area's load is not that balancing authority's Form 930 demand (the load
+scaling above uses county splits, not these areas): for example, the
+northern Washington load at NORTH (PSEI) also serves SCL and TPWR, and BPAT
+includes the Portland and Willamette Valley loads of PGE and PACW at
+WILLAMET and WCASCADE. Balancing authorities with no bus of their own (AVA,
+CHPD, DOPD, EPE, GCPD, PGE, SCL, TEPC, TIDC, TPWR and the generation-only
+ones) have no area.
+
 ### Load Curtailment
 
 Load curtailment is implemented in three regimes:
@@ -109,11 +156,12 @@ the PSS/E RAW file by the build scripts below; they replace the earlier
 | `wecc240_cost.csv` | one cost row per generator (`id` is bus name and PSS/E generator ID) |
 | `wecc240_gentypes.csv` | polynomial costs (`c2,c1,c0`) by generator type |
 | `wecc240_geodata.csv` | bus locations (same as `gis/wecc240.csv`) |
+| `wecc240_ba.csv` | EIA-930 balancing authority of each bus (`BUS_I,NAME,BA,NOTE`); areas of the 2020 case |
 | `wecc240_gentypes.py` | derives `wecc240_gentypes.csv` from `data/WECC240_2018_Generation_scheduling.xlsx` (needs `openpyxl`) |
 | `build_wecc240_2011.py` | builds `wecc240_case.py` and `wecc240_2011.py` from `wecc240_case.raw` and `wecc240_geodata.csv` |
 | `build_wecc240_2018.py` | builds `wecc240_2018.py` from `wecc240_2011.py` and the cost CSVs |
 | `build_wecc240_2020.py` | builds `wecc240_2020.py` from `wecc240_2018.py`, `eudoxys/loads`, `eudoxys/generation` and `slacgismo/regrow` battery data |
-| `_case.py`, `_psse.py`, `_dcline.py` | private modules used by the build scripts: case model, PSS/E RAW reader, DC line solver |
+| `_case.py`, `_psse.py`, `_dcline.py`, `_areas.py` | private modules used by the build scripts: case model, PSS/E RAW reader, DC line solver, balancing authority areas |
 
 ### Data flow
 
