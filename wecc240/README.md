@@ -61,7 +61,7 @@ September; `-t` sets another hour), built by `build_wecc240_2020.py`:
   `rateA` × 1.5), so the branches loaded above `rateA` in the resulting power
   flow get `rateA` (and `rateB`, `rateC` where lower) raised to the flow
   over 0.8, as `build_wecc240_2018.py` does (18 branches at the default
-  hour; the build lists them).
+  hour; the build lists them; see Line Ratings below).
 - Solution: the OPF (PIPS, with the HVDC lines) is then solved with the
   case's own limits and raised ratings, and its solution is saved to the
   case (`_case.Case.apply_result`, as `ppedit` does): bus `Vm` and `Va`,
@@ -84,6 +84,44 @@ The saved OPF solution has no branch above `rateA` and voltages within
 0.900-1.100 pu (cost 1,566,530 $/h, generation 136,604 MW); a power flow
 from it converges. The hourly time-series model, designed
 to be run using `pypower_sim`, is in progress.
+
+### Line Ratings
+
+The dispatch OPF is infeasible with the 2018 branch ratings at the default
+hour (2020-09-06 18:00 PDT). It solves with `rateA` × 1.5, so
+`build_wecc240_2020.py` raises the 18 branch ratings that its dispatch loads
+above the 2018 `rateA`. Each new `rateA` is the dispatch flow over 0.8 (a 20%
+margin, as `build_wecc240_2018.py` does), and `rateB` and `rateC` are lifted
+to it where lower. These are modeling changes, not data, and need review.
+All other branches keep their 2018 ratings. Ratings are in MVA:
+
+| Branch | Buses | 2018 rateA | New rateA | Increase | Factor |
+|---|---|---:|---:|---:|---:|
+| 4101–4131 | COULEE – COULEE | 10,539 | 14,554 | +4,015 | ×1.38 |
+| 4009–4039 | BIG EDDY – DALLES21 | 2,886 | 5,731 | +2,845 | ×1.99 |
+| 3803–3901 | MIDWAY – LOSBANOS | 1,560 | 2,940 | +1,380 | ×1.88 |
+| 1302–1303 | H ALLEN – H ALLEN | 1,500 | 2,828 | +1,328 | ×1.89 |
+| 6302–7001 | LARAMIE – COLOEAST | 2,000 | 3,273 | +1,273 | ×1.64 |
+| 1101–1401 (2 circuits) | CORONADO – PALOVRDE | 1,630 | 2,610 | +980 each | ×1.60 |
+| 3401–3804 | GREGG – GATES | 986 | 1,853 | +867 | ×1.88 |
+| 8002–8005 | TRACY – TRACYPMP | 840 | 1,572 | +732 | ×1.87 |
+| 1401–1403 | PALOVRDE – PARKER | 430 | 807 | +377 | ×1.88 |
+| 3907–8004 | BELLOTA – RNCHSECO | 747 | 1,106 | +359 | ×1.48 |
+| 3913–8004 | GOLDHILL – RNCHSECO | 747 | 1,101 | +354 | ×1.47 |
+| 3401–3402 (2 circuits) | GREGG – HELMS PP | 986 | 1,330 | +344 each | ×1.35 |
+| 3401–3404 | GREGG – PANOCHE | 986 | 1,311 | +325 | ×1.33 |
+| 6401–6402 (2 circuits) | TRACYSPP – SUMITSPP | 250 | 468 | +218 each | ×1.87 |
+| 3102–3104 | MARTIN – MARTIN | 345 | 467 | +122 | ×1.35 |
+
+The raises total about 18.2 GW. They cluster in northern and central
+California (Path 15 and the Gregg, Helms and Panoche lines into Fresno, and
+a Tracy, Bellota, Gold Hill and Rancho Seco 230 kV pocket), the Pacific
+Northwest (Big Eddy–The Dalles and the Grand Coulee transformer), the
+Southwest (Coronado–Palo Verde and Palo Verde–Parker), and the Rocky
+Mountain links (Laramie–Colorado East and Tracy–Summit in Nevada). H ALLEN
+and MARTIN are probably transformers between voltage levels at one
+substation. The build prints the raised ratings; they change with
+`-t` and the input data.
 
 ### Load Curtailment
 
