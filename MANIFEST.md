@@ -17,7 +17,7 @@ Update this file in the same PR that adds, moves, or deletes a file.
 - Change a static case: edit `wecc240/build_wecc240_2011.py` / `build_wecc240_2018.py` or their CSV inputs, rerun them, run `pytest`; never edit `wecc240_2011.py` / `wecc240_2018.py` by hand
 - Change generator costs: `wecc240/wecc240_gentypes.py` (needs `openpyxl`) rewrites `wecc240_gentypes.csv`; then rebuild 2018
 - Change the PSS/E reader or case model: `wecc240/_psse.py`, `wecc240/_case.py`; DC lines in `wecc240/_dcline.py`
-- Change the 2020 case: edit `wecc240/build_wecc240_2020.py` and rerun it (reads `eudoxys/loads` `loads/wecc` and `eudoxys/generation` `data/wecc` from sibling clones or GitHub, `-l`/`-g` to override); never edit `wecc240_2020.py` by hand
+- Change the 2020 case: edit `wecc240/build_wecc240_2020.py` and rerun it (reads `eudoxys/loads` `loads/wecc`, `eudoxys/generation` `data/wecc` and `slacgismo/regrow` `data/batteries/processed` from sibling clones or GitHub, `-l`/`-g`/`-b` to override); never edit `wecc240_2020.py` by hand
 - Change the CLI: `wecc240/wecc240.py` (to become `wecc240/cli.py`, #5); `pyproject.toml` `[project.scripts]`
 - Rebuild Canadian/Mexican node loads: `wecc240/Canada/aeso.py`, `bchydro.py`, `wecc240/Mexico/mexicali.py` (run from their folder)
 - Add a test: `wecc240/_test/test_<name>.py`; describe it in `wecc240/_test/README.md`
@@ -40,7 +40,7 @@ Update this file in the same PR that adds, moves, or deletes a file.
 | `wecc240/_dcline.py` | DC-line model for the solver | private |
 | `wecc240/build_wecc240_2011.py` | builds 2011 and `wecc240_case.py` from the RAW file | script |
 | `wecc240/build_wecc240_2018.py` | builds the 2018 case | script |
-| `wecc240/build_wecc240_2020.py` | builds the 2020 case from the 2018 case, `eudoxys/loads` node net loads and `eudoxys/generation` node generation | script; reads ~200 MB of sibling-repository data |
+| `wecc240/build_wecc240_2020.py` | builds the 2020 case from the 2018 case, `eudoxys/loads` node net loads, `eudoxys/generation` node generation and `slacgismo/regrow` battery storage | script; reads ~200 MB of sibling-repository data |
 | `wecc240/wecc240_gentypes.py` | fits cost curves by generator type | script; needs `openpyxl` |
 | `wecc240/aggregate_*.py` | build node time series (`total`, `net`, `gens`, `solar`, `wind`) | scripts; run from `wecc240/`; bugs #8 #9 #10 |
 | `wecc240/viewer.py` | marimo viewer of node time series | `marimo run wecc240/viewer.py`; file names wrong (#10) |

@@ -25,7 +25,9 @@
 
 - [ ] **Milestone 4: Energy storage**
 
-  Storage scheduled for the CAISO "duck curve": charge 9am to 3pm,
+  The 2020 case has battery storage from `slacgismo/regrow` PR #91 (node
+  charge/discharge and reactive limits, monthly net energy). Storage
+  scheduled for the CAISO "duck curve": charge 9am to 3pm,
   discharge 3pm to 9pm. The benefit shows only in a time-series simulation.
 
 - [ ] **Milestone 5: Load curtailment**

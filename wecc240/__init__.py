@@ -13,7 +13,8 @@ of the same name that returns the PYPOWER case `dict`.
 
 - `wecc240.wecc240_2020.wecc240_2020`: the 2018 model at 1 January 2020
   00:00 UTC, with node net loads from `eudoxys/loads` and node generation by
-  fuel category from `eudoxys/generation` (see
+  fuel category from `eudoxys/generation`, and battery storage from
+  `slacgismo/regrow` (see
   `wecc240/build_wecc240_2020.py`).
 
 `wecc240.WECC240_2011` and `wecc240.WECC240_2018` are those case dicts,

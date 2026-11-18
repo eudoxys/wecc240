@@ -1,6 +1,6 @@
 """Build wecc240/wecc240_2020.py: the WECC 240 case at 1 January 2020 00:00 UTC
 
-Syntax: python3 wecc240/build_wecc240_2020.py [-t TIMESTAMP] [-l FOLDER] [-g FOLDER]
+Syntax: python3 wecc240/build_wecc240_2020.py [-t TIMESTAMP] [-l FOLDER] [-g FOLDER] [-b FOLDER]
 
 Options
 -------
@@ -11,6 +11,9 @@ Options
 - `-g FOLDER`, `--generation FOLDER`: `data/wecc` folder of
   `eudoxys/generation` (default `GENERATION_LOCAL` in a sibling clone,
   otherwise `GENERATION_URL`)
+- `-b FOLDER`, `--batteries FOLDER`: `data/batteries/processed` folder of
+  `slacgismo/regrow` (default `BATTERIES_LOCAL` in a sibling clone,
+  otherwise `BATTERIES_URL`)
 
 Description
 -----------
@@ -32,6 +35,8 @@ flowchart LR
     actual[/"generation: node_actual_*.csv.gz"/] -->|node MW by category| b2020
     cap[/"generation: node_capacity_*.csv.gz"/] -->|node capacity by category| b2020
     foreign -->|dispatch_MW| b2020
+    bounds[/"regrow: node_reactive_bounds_by_year.csv"/] -->|node battery P, Q limits| b2020
+    bgen[/"regrow: node_generation_by_month.csv"/] -->|node battery net MWh| b2020
     c2018[wecc240_2018.py] --> b2020
     types[/wecc240_gentypes.csv/] -->|costs of new generators| b2020
     b2020 --> c2020[wecc240_2020.py]
@@ -77,11 +82,29 @@ Generation
    no reactive power range, and `Vg` of the bus.
 
 4. Solar and wind generators get `Pmax = Pg` (the resource available at the
-   hour). Categories with no NREL cost (`FIXED`: oil, other and storage) are
-   fixed at their output (`Pmin = Pmax = Pg`) with zero cost.
+   hour). Categories with no NREL cost (`FIXED`: oil, other and pumped
+   storage) are fixed at their output (`Pmin = Pmax = Pg`) with zero cost.
 
 5. The generators at the Canadian and Mexican nodes are dispatched to the
    node file's `dispatch_MW` in proportion to their `Pmax`.
+
+Battery storage
+---------------
+
+Battery storage comes from the battery data of `slacgismo/regrow` PR #91
+(EIA-860 and EIA-923, WECC, 2018-2022), not from the `battery_storage`
+category of `eudoxys/generation`. Each node in
+`node_reactive_bounds_by_year.csv` for the year of the hour gets one
+generator at the node bus chosen as in step 3, with
+
+- `Pmin = -max_charge_MW` and `Pmax = max_discharge_MW`;
+- `Qmin = -reactive_MVAR` and `Qmax = reactive_MVAR` (PYPOWER has only a
+  box, so the disc of the P-Q region is not represented; Q limits apply
+  only where the bus is a PV bus);
+- `Pg` the node's mean net output in the month of the hour,
+  `Net Gen (MWh)` of `node_generation_by_month.csv` over the hours of the
+  month, limited to `Pmin`..`Pmax`; 0 where the node did not report
+  (`NaN`).
 
 Costs
 -----
@@ -89,7 +112,8 @@ Costs
 Existing generators keep their 2018 cost by type (`build_wecc240_2018.py`).
 A new generator gets the cost of its category: the polynomial costs of the
 category's types in `wecc240_gentypes.csv`, averaged over the category's
-generators in the 2018 case weighted by `Pmax`. `FIXED` categories cost 0.
+generators in the 2018 case weighted by `Pmax`. `FIXED` categories and
+battery storage cost 0.
 
 Branch ratings, voltage setpoints and shunts are those of the 2018 case. The
 script solves the power flow and fails if it does not converge; it reports
@@ -124,7 +148,6 @@ CATEGORIES = {
     "biomass": ["B","NB"],
     "oil": [],
     "other": [],
-    "battery_storage": [],
     "pumped_storage": [],
     }
 """Generator type codes (PSS/E generator IDs) of each `eudoxys/generation` category"""
@@ -135,7 +158,7 @@ UNCATEGORIZED = ["SC","ND"]
 VARIABLE = ["solar","wind"]
 """Categories whose `Pmax` is the output at the hour"""
 
-FIXED = ["oil","other","battery_storage","pumped_storage"]
+FIXED = ["oil","other","pumped_storage"]
 """Categories with no NREL cost, fixed at their output at zero cost"""
 
 FOREIGN = {"c2c10y":"Canada","c2u6xt":"Canada","9mtzm4":"Mexico"}
@@ -152,6 +175,13 @@ GENERATION_LOCAL = os.path.join(HERE,"..","..","generation","data","wecc")
 
 GENERATION_URL = "https://raw.githubusercontent.com/eudoxys/generation/main/data/wecc"
 """`eudoxys/generation` WECC folder on GitHub"""
+
+BATTERIES_LOCAL = os.path.join(HERE,"..","..","regrow","data","batteries","processed")
+"""`slacgismo/regrow` battery data folder in a sibling clone"""
+
+BATTERIES_URL = "https://raw.githubusercontent.com/slacgismo/regrow/" \
+    "cf38a9cd48a5ece0011ee1b20be3140b380201dc/data/batteries/processed"
+"""`slacgismo/regrow` battery data folder on GitHub (PR #91 head, `battery-data` branch)"""
 
 def read(name):
     """Rows of a CSV file next to this script"""
@@ -184,6 +214,18 @@ def node_loads(loads,timestamp):
         result[node] = result.get(node,0.0) + load
     return result
 
+def node_bus(rows,gens):
+    """Bus of a node for a new generator: the bus with the most generating
+    capacity, else the highest-voltage bus; and its voltage setpoint"""
+    busset = {b[0] for b in rows}
+    genbus = {}
+    for g in gens:
+        if g[0] in busset:
+            genbus[g[0]] = genbus.get(g[0],0.0) + g[8]
+    bus = max(genbus,key=genbus.get) if genbus else max(rows,key=lambda b:b[9])[0]
+    vg = next((g[5] for g in gens if g[0] == bus),next(b[7] for b in rows if b[0] == bus))
+    return bus,vg
+
 def main():
     """Write wecc240/wecc240_2020.py"""
     parser = argparse.ArgumentParser(prog="build_wecc240_2020.py",
@@ -191,11 +233,13 @@ def main():
     parser.add_argument("-t","--timestamp",default=TIMESTAMP,help="hour of the snapshot (UTC)")
     parser.add_argument("-l","--loads",help="eudoxys/loads loads/wecc folder")
     parser.add_argument("-g","--generation",help="eudoxys/generation data/wecc folder")
+    parser.add_argument("-b","--batteries",help="slacgismo/regrow data/batteries/processed folder")
     args = parser.parse_args()
     timestamp = pd.Timestamp(args.timestamp)
     timestamp = timestamp.tz_localize("UTC") if timestamp.tzinfo is None else timestamp.tz_convert("UTC")
     loads = args.loads or (LOADS_LOCAL if os.path.exists(LOADS_LOCAL) else LOADS_URL)
     generation = args.generation or (GENERATION_LOCAL if os.path.exists(GENERATION_LOCAL) else GENERATION_URL)
+    batteries = args.batteries or (BATTERIES_LOCAL if os.path.exists(BATTERIES_LOCAL) else BATTERIES_URL)
 
     case = Case.load(os.path.join(HERE,"wecc240_2018.py"))
     case.name = "wecc240_2020"
@@ -278,12 +322,7 @@ def main():
                     else:
                         g[8],g[9] = max(g[8],g[1]),min(g[9],g[1])
             elif value != 0:
-                genbus = {}
-                for g in gens:
-                    if g[0] in busset:
-                        genbus[g[0]] = genbus.get(g[0],0.0) + g[8]
-                bus = max(genbus,key=genbus.get) if genbus else max(rows,key=lambda b:b[9])[0]
-                vg = next((g[5] for g in gens if g[0] == bus),next(b[7] for b in rows if b[0] == bus))
+                bus,vg = node_bus(rows,gens)
                 if cat in FIXED:
                     pmax,pmin = value,value
                 elif cat in VARIABLE:
@@ -315,6 +354,31 @@ def main():
             gencat.insert(index,"foreign")
             added.append(("foreign",node,bus[0],dispatch))
 
+    # battery storage
+    bounds = pd.read_csv(path(batteries,"node_reactive_bounds_by_year.csv"))
+    bounds = bounds[bounds["Year"] == timestamp.year].set_index("geohash")
+    if bounds.empty or bounds.index.duplicated().any():
+        raise ValueError(f"node_reactive_bounds_by_year.csv has no unique rows for {timestamp.year}")
+    unknown = sorted(set(bounds.index) - set(nodes))
+    if unknown:
+        raise ValueError(f"battery nodes {unknown} have no bus")
+    energy = pd.read_csv(path(batteries,"node_generation_by_month.csv"))
+    energy = energy[(energy["Year"] == timestamp.year) & (energy["Month"] == timestamp.month)]
+    energy = energy.set_index("geohash")["Net Gen (MWh)"]
+    hours = timestamp.days_in_month*24
+    storage = []
+    for node,row in bounds.iterrows():
+        pmin,pmax = -float(row["max_charge_MW"]),float(row["max_discharge_MW"])
+        qmax = float(row["reactive_MVAR"])
+        net = energy.get(node,float("nan"))
+        value = 0.0 if pd.isna(net) else min(max(net/hours,pmin),pmax)
+        bus,vg = node_bus(nodes[node],gens)
+        index = case.add_row("gen",{"bus":bus,"Pg":value,"Qmax":qmax,"Qmin":-qmax,
+            "Vg":vg,"mBase":case.baseMVA,"status":1,"Pmax":pmax,"Pmin":pmin})
+        case.tables["gencost"][index] = [2,0.0,0.0,3,"0,0,0"]
+        gencat.insert(index,"battery_storage")
+        storage.append((node,bus,pmin,pmax,qmax,value,"no report" if pd.isna(net) else ""))
+
     result = case.solve("pf")
     if not result["success"]:
         raise ValueError("power flow failed")
@@ -343,6 +407,12 @@ def main():
     print(f"  {len(added)} generators added:")
     for cat,node,bus,value in added:
         print(f"    {cat:16s} node {node} bus {bus}: {value:.1f} MW")
+    print(f"  {len(storage)} battery storage generators added "
+        f"({sum(x[3] for x in storage):.1f} MW discharge, {-sum(x[2] for x in storage):.1f} MW charge, "
+        f"{sum(x[5] for x in storage):.1f} MW scheduled):")
+    for node,bus,pmin,pmax,qmax,value,note in storage:
+        print(f"    node {node} bus {bus}: P {pmin:.1f}..{pmax:.1f} MW, Q +/-{qmax:.1f} MVAr, "
+            f"Pg {value:.2f} MW {note}".rstrip())
     print(f"  power flow: Vm {vmin:.3f}-{vmax:.3f} pu, buses outside Vmin-Vmax: {outside}; "
         f"{overloaded} branches above rateA")
 

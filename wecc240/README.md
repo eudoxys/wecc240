@@ -45,8 +45,16 @@ The static `wecc240_2020` case is the `wecc240_2018` case at 1 January
 - Costs: existing generators keep their 2018 cost by type; an added
   generator gets its category's cost (the `Pmax`-weighted mean of the
   category's 2018 generator costs). Solar and wind get `Pmax = Pg`. Oil,
-  other, battery and pumped storage have no NREL cost and are fixed at their
-  output (`Pmin = Pmax = Pg`) with zero cost.
+  other and pumped storage have no NREL cost and are fixed at their output
+  (`Pmin = Pmax = Pg`) with zero cost.
+- Battery storage comes from the battery data of `slacgismo/regrow` PR #91
+  (EIA-860/923): one zero-cost generator per node in
+  `node_reactive_bounds_by_year.csv` for 2020 (28 nodes), with `Pmin` the
+  negative of the maximum charge rate, `Pmax` the maximum discharge rate,
+  `Q` limits ±`reactive_MVAR`, and `Pg` the node's mean net output for
+  January 2020 from `node_generation_by_month.csv` (0 where the node did not
+  report). The `battery_storage` category of `eudoxys/generation` is not
+  used.
 
 Its power flow converges, with two buses above 1.1 pu (6304 LARAMIE,
 6401 TRACYSPP) and 13 branches above `rateA`; these are reported by the
@@ -88,7 +96,7 @@ the PSS/E RAW file by the build scripts below; they replace the earlier
 | `wecc240_gentypes.py` | derives `wecc240_gentypes.csv` from `data/WECC240_2018_Generation_scheduling.xlsx` (needs `openpyxl`) |
 | `build_wecc240_2011.py` | builds `wecc240_case.py` and `wecc240_2011.py` from `wecc240_case.raw` and `wecc240_geodata.csv` |
 | `build_wecc240_2018.py` | builds `wecc240_2018.py` from `wecc240_2011.py` and the cost CSVs |
-| `build_wecc240_2020.py` | builds `wecc240_2020.py` from `wecc240_2018.py`, `eudoxys/loads` and `eudoxys/generation` data |
+| `build_wecc240_2020.py` | builds `wecc240_2020.py` from `wecc240_2018.py`, `eudoxys/loads`, `eudoxys/generation` and `slacgismo/regrow` battery data |
 | `_case.py`, `_psse.py`, `_dcline.py` | private modules used by the build scripts: case model, PSS/E RAW reader, DC line solver |
 
 ### Data flow
@@ -139,6 +147,7 @@ flowchart LR
     gendata -- "node generation and capacity by category" --> b2020
     foreign -- "load_MW, dispatch_MW" --> b2020
     types -- "costs of added generators" --> b2020
+    batteries[/"slacgismo/regrow data/batteries/processed"/] -- "node battery limits, monthly net energy" --> b2020
     b2020 -- "loads, dispatch, added generators" --> c2020
 ```
 
@@ -167,7 +176,8 @@ and MW are NREL's 2018 counts and `Pmax` totals.
 | `geothermal` | `CE`, `NE` | Geothermal | 2 | 1,957 |
 | `biomass` | `B`, `NB` | Biomass | 5 | 1,841 |
 | `pumped_storage` | none | ESS-2 (`ESS` sheet) | 4 | |
-| `oil`, `other`, `battery_storage` | none | | | |
+| `oil`, `other` | none | | | |
+| `battery_storage` | none (2020: `slacgismo/regrow` battery data) | | | |
 
 - `E` (IMPERIAL, MEXICO, VALMY) is Steam in NREL's data like `C`, and its
   marginal cost (`c1` 3.663 $/MWh, against 2.496 for `C` and 39–60 for the
@@ -195,8 +205,10 @@ Rebuild the cases from the RAW file with
 (only the last two are needed after changing the costs).
 `build_wecc240_2020.py` reads `loads/wecc` of `eudoxys/loads` and
 `data/wecc` of `eudoxys/generation` from sibling clones of those
-repositories if present, otherwise from GitHub (about 200 MB); use
-`-l FOLDER` and `-g FOLDER` to name other copies, and `-t TIMESTAMP` for
+repositories if present, otherwise from GitHub (about 200 MB), and the
+battery data in `data/batteries/processed` of `slacgismo/regrow` (sibling
+clone, otherwise PR #91's head commit on GitHub); use `-l FOLDER`,
+`-g FOLDER` and `-b FOLDER` to name other copies, and `-t TIMESTAMP` for
 another hour.
 
 ### Provenance of `wecc240_gentypes.csv`
