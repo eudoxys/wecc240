@@ -643,7 +643,7 @@ def main():
         f"{used['node'].nunique()} nodes) are in counties and categories with data; nearest-node "
         f"distance median {far['distance_km'].median():.1f} km, max {far['distance_km'].max():.1f} km "
         f"({far.loc[far['distance_km'].idxmax(),'Plant Name']})")
-    print("  US fleet by category, MW (2018 Pmax -> 2020 Pmax, Pg):")
+    print("  US fleet by category, MW (2018 Pmax -> 2020 Pmax, output in the data):")
     for cat in CATEGORIES:
         rows = [x for x in added if x[1] == cat]
         print(f"    {cat:16s} {before[cat]:9.1f} -> {sum(x[4] for x in rows):9.1f}, "
