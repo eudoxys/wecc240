@@ -25,41 +25,103 @@ control strategy are not fully realized without a time-series simulation.
 
 ## `wecc240_2020`
 
-The static `wecc240_2020` case is the `wecc240_2018` case at 1 January
-2020 00:00 UTC, built by `build_wecc240_2020.py`:
+The static `wecc240_2020` case is the `wecc240_2018` network at the hour of
+the peak CAISO net load in 2020 (2020-09-07 01:00 UTC, 18:00 PDT on 6
+September; `-t` sets another hour), built by `build_wecc240_2020.py`:
 
-- Bus loads are node net loads from `eudoxys/loads`: each county's
-  calibrated gross load (`loads/wecc/wecc_estimate.csv.gz`) less its
-  distributed solar (`county_dg.csv.gz`), allocated to nodes with
+- Bus loads are node net loads from `eudoxys/loads` at the hour: each
+  county's calibrated gross load (`loads/wecc/wecc_estimate.csv.gz`) less
+  its distributed solar (`county_dg.csv.gz`), allocated to nodes with
   `node_estimate_cf.csv`, plus the `load_MW` of the Canadian and Mexican
   node files. A node's load is split among its buses by their 2018 `PD`,
   keeping each bus's `QD/PD`.
-- Generator outputs are node net generation by EIA fuel category from
-  `eudoxys/generation` (`data/wecc/node_actual_{category}.csv.gz`), split
-  among a node's generators of that category by `Pmax`. Where a node has
-  generation of a category but no generator of it, a generator is added at
-  the node with `Pmax` the node's capacity
-  (`node_capacity_{category}.csv.gz`). Canadian and Mexican generators are
-  dispatched to the node files' `dispatch_MW` (Alberta, which has no
-  generator in the case, gets one).
-- Costs: existing generators keep their 2018 cost by type; an added
-  generator gets its category's cost (the `Pmax`-weighted mean of the
-  category's 2018 generator costs). Solar and wind get `Pmax = Pg`. Oil,
-  other and pumped storage have no NREL cost and are fixed at their output
-  (`Pmin = Pmax = Pg`) with zero cost.
+- County loads are scaled so that each US balancing authority's 2020 peak
+  matches its EIA Form 930 demand peak (`data/form930_load_2020.csv.gz`,
+  written by `data/form930_load.py` with `eia.Form930` of `eudoxys/eia`;
+  spikes and bad hours are dropped first). Counties are split among
+  balancing authorities by the nameplate share of the balancing authorities
+  of their EIA-860 plants; counties without plants take the split of the
+  counties sharing their load node. Total load at the default hour is
+  133.0 GW (140.5 GW unscaled). PSEI has almost no 2020 Form 930 load data,
+  so its counties are not scaled.
+- The US generator fleet is replaced by the EIA-860 fleet of the year (the
+  WECC generators operating at the hour, from the EIA-860 workbooks in
+  `slacgismo/regrow`), each plant assigned to its nearest node by
+  great-circle distance as REGROW's `nearest2()` does. The county capacity
+  and output of `eudoxys/generation` (`data/wecc/capacity_*.csv.gz`,
+  `actual_*.csv.gz`) are split among each county's units of a category by
+  nameplate and summed by node, in place of `eudoxys/generation`'s
+  county-to-node map. Each node and category gets one generator:
+  dispatchable categories get `Pmax` the node capacity; solar and wind get
+  `Pmax = Pg` the node output.
+- Dispatch: the dispatchable generators are dispatched by an OPF with the
+  others fixed (solar, wind, batteries, Canada and Mexico), and its `Pg`,
+  `Qg` and voltages become the setpoints. The OPF is
+  infeasible with the 2018 branch ratings at the peak hour (it needs
+  `rateA` × 1.5), so the branches loaded above `rateA` in the resulting power
+  flow get `rateA` (and `rateB`, `rateC` where lower) raised to the flow
+  over 0.8, as `build_wecc240_2018.py` does (18 branches at the default
+  hour; the build lists them; see Line Ratings below).
+- Solution: the OPF (PIPS, with the HVDC lines) is then solved with the
+  case's own limits and raised ratings, and its solution is saved to the
+  case (`_case.Case.apply_result`, as `ppedit` does): bus `Vm` and `Va`,
+  generator `Pg` and `Qg`, and DC line flows.
+- Costs: a node's generator gets the `Pmax`-weighted cost of the node's 2018
+  generators of its category, else that of the category; oil and other get
+  the most expensive 2018 gas cost (`TG`); pumped storage, solar, wind and
+  hydro cost 0. The 2018 reactive limits of each node's generators go to its
+  new generators.
 - Battery storage comes from the battery data of `slacgismo/regrow` PR #91
   (EIA-860/923): one zero-cost generator per node in
-  `node_reactive_bounds_by_year.csv` for 2020 (28 nodes), with `Pmin` the
-  negative of the maximum charge rate, `Pmax` the maximum discharge rate,
-  `Q` limits ±`reactive_MVAR`, and `Pg` the node's mean net output for
-  January 2020 from `node_generation_by_month.csv` (0 where the node did not
-  report). The `battery_storage` category of `eudoxys/generation` is not
-  used.
+  `node_reactive_bounds_by_year.csv` for the year, with `Pmin` the negative
+  of the maximum charge rate, `Pmax` the maximum discharge rate, `Q` limits
+  ±`reactive_MVAR`, and `Pg` the node's mean net output for the month from
+  `node_generation_by_month.csv` (0 where the node did not report).
+- Canadian and Mexican generators are dispatched to the node files'
+  `dispatch_MW` (Alberta, which has no generator in the case, gets one).
 
-Its power flow converges, with two buses above 1.1 pu (6304 LARAMIE,
-6401 TRACYSPP) and 13 branches above `rateA`; these are reported by the
-build script but not fixed. The hourly time-series model, designed to be
-run using `pypower_sim`, is in progress.
+The saved OPF solution has no branch above `rateA` and voltages within
+0.900-1.100 pu (cost 1,566,530 $/h, generation 136,604 MW); a power flow
+from it converges. The hourly time-series model, designed
+to be run using `pypower_sim`, is in progress.
+
+### Line Ratings
+
+The dispatch OPF is infeasible with the 2018 branch ratings at the default
+hour (2020-09-06 18:00 PDT). It solves with `rateA` × 1.5, so
+`build_wecc240_2020.py` raises the 18 branch ratings that its dispatch loads
+above the 2018 `rateA`. Each new `rateA` is the dispatch flow over 0.8 (a 20%
+margin, as `build_wecc240_2018.py` does), and `rateB` and `rateC` are lifted
+to it where lower. These are modeling changes, not data, and need review.
+All other branches keep their 2018 ratings. Ratings are in MVA:
+
+| Branch | Buses | 2018 rateA | New rateA | Increase | Factor |
+|---|---|---:|---:|---:|---:|
+| 4101–4131 | COULEE – COULEE | 10,539 | 14,554 | +4,015 | ×1.38 |
+| 4009–4039 | BIG EDDY – DALLES21 | 2,886 | 5,731 | +2,845 | ×1.99 |
+| 3803–3901 | MIDWAY – LOSBANOS | 1,560 | 2,940 | +1,380 | ×1.88 |
+| 1302–1303 | H ALLEN – H ALLEN | 1,500 | 2,828 | +1,328 | ×1.89 |
+| 6302–7001 | LARAMIE – COLOEAST | 2,000 | 3,273 | +1,273 | ×1.64 |
+| 1101–1401 (2 circuits) | CORONADO – PALOVRDE | 1,630 | 2,610 | +980 each | ×1.60 |
+| 3401–3804 | GREGG – GATES | 986 | 1,853 | +867 | ×1.88 |
+| 8002–8005 | TRACY – TRACYPMP | 840 | 1,572 | +732 | ×1.87 |
+| 1401–1403 | PALOVRDE – PARKER | 430 | 807 | +377 | ×1.88 |
+| 3907–8004 | BELLOTA – RNCHSECO | 747 | 1,106 | +359 | ×1.48 |
+| 3913–8004 | GOLDHILL – RNCHSECO | 747 | 1,101 | +354 | ×1.47 |
+| 3401–3402 (2 circuits) | GREGG – HELMS PP | 986 | 1,330 | +344 each | ×1.35 |
+| 3401–3404 | GREGG – PANOCHE | 986 | 1,311 | +325 | ×1.33 |
+| 6401–6402 (2 circuits) | TRACYSPP – SUMITSPP | 250 | 468 | +218 each | ×1.87 |
+| 3102–3104 | MARTIN – MARTIN | 345 | 467 | +122 | ×1.35 |
+
+The raises total about 18.2 GW. They cluster in northern and central
+California (Path 15 and the Gregg, Helms and Panoche lines into Fresno, and
+a Tracy, Bellota, Gold Hill and Rancho Seco 230 kV pocket), the Pacific
+Northwest (Big Eddy–The Dalles and the Grand Coulee transformer), the
+Southwest (Coronado–Palo Verde and Palo Verde–Parker), and the Rocky
+Mountain links (Laramie–Colorado East and Tracy–Summit in Nevada). H ALLEN
+and MARTIN are probably transformers between voltage levels at one
+substation. The build prints the raised ratings; they change with
+`-t` and the input data.
 
 ### Load Curtailment
 
@@ -88,7 +150,7 @@ the PSS/E RAW file by the build scripts below; they replace the earlier
 | `wecc240_map.py` | the case with its `geodata` and `geotags` |
 | `wecc240_2011.py` | the 2011 case with geodata; Pacific DC Intertie and Intermountain lines as `dcline` rows; generated, don't edit |
 | `wecc240_2018.py` | `wecc240_2011.py` with generator costs by type, branch ratings, voltage fixes and `rateA` margins; generated, don't edit |
-| `wecc240_2020.py` | `wecc240_2018.py` with loads and generation at 2020-01-01 00:00 UTC; generated, don't edit |
+| `wecc240_2020.py` | `wecc240_2018.py` network with the EIA-860 fleet, loads and OPF dispatch at the 2020 peak CAISO net load hour; generated, don't edit |
 | `wecc240_bus.csv` | bus index (row, PSS/E bus number, name, PYPOWER `bus_i`) |
 | `wecc240_cost.csv` | one cost row per generator (`id` is bus name and PSS/E generator ID) |
 | `wecc240_gentypes.csv` | polynomial costs (`c2,c1,c0`) by generator type |
@@ -144,10 +206,13 @@ flowchart LR
 
     c2018 --> b2020
     loads -- "county net load, node factors" --> b2020
-    gendata -- "node generation and capacity by category" --> b2020
+    gendata -- "county generation and capacity by category" --> b2020
     foreign -- "load_MW, dispatch_MW" --> b2020
     types -- "costs of added generators" --> b2020
     batteries[/"slacgismo/regrow data/batteries/processed"/] -- "node battery limits, monthly net energy" --> b2020
+    eia860[/"slacgismo/regrow EIA-860, data/wecc240/nodes.csv"/] -- "fleet, nearest node" --> b2020
+    caiso[/"eudoxys/loads loads/caiso"/] -- "CAISO load (peak net load hour)" --> b2020
+    form930[/"data/form930_load_2020.csv.gz"/] -- "BA peaks" --> b2020
     b2020 -- "loads, dispatch, added generators" --> c2020
 ```
 
@@ -206,9 +271,9 @@ Rebuild the cases from the RAW file with
 `build_wecc240_2020.py` reads `loads/wecc` of `eudoxys/loads` and
 `data/wecc` of `eudoxys/generation` from sibling clones of those
 repositories if present, otherwise from GitHub (about 200 MB), and the
-battery data in `data/batteries/processed` of `slacgismo/regrow` (sibling
-clone, otherwise PR #91's head commit on GitHub); use `-l FOLDER`,
-`-g FOLDER` and `-b FOLDER` to name other copies, and `-t TIMESTAMP` for
+EIA-860 workbooks, node coordinates and battery data of `slacgismo/regrow`
+(sibling clone, otherwise PR #91's head commit on GitHub); use `-l FOLDER`,
+`-g FOLDER`, `-r FOLDER`, `-b FOLDER` and `-e CSV` to name other copies (reading the EIA-860 workbooks needs `openpyxl`), and `-t TIMESTAMP` for
 another hour.
 
 ### Provenance of `wecc240_gentypes.csv`

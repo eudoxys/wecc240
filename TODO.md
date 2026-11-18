@@ -16,10 +16,13 @@
 - [ ] **Milestone 3: WECC 240 (2020)** (`wecc240.wecc240_2020`, in progress)
 
   Quasi-steady time-series model for `pypower_sim`, based on the 2018 model.
-  Done: static case `wecc240_2020` at 1 January 2020 00:00 UTC, built by
-  `wecc240/build_wecc240_2020.py` from `eudoxys/loads` node net loads and
-  `eudoxys/generation` node generation by category. Remaining: hourly time
-  series, voltages above 1.1 pu and overloaded branches in its power flow,
+  Done: static case `wecc240_2020` at the 2020 peak CAISO net load hour (or
+  any hour, `-t`), built by `wecc240/build_wecc240_2020.py` from
+  `eudoxys/loads` node net loads scaled to Form 930 balancing authority
+  peaks, the EIA-860 fleet at REGROW's nearest nodes with
+  `eudoxys/generation` county capacity and output, and an OPF dispatch.
+  Remaining: hourly time series, review of the 18 raised branch ratings and
+  of the county-to-balancing-authority split,
   decide where its time-series inputs live (#13), fix the aggregate scripts
   (#8, #9, #10).
 

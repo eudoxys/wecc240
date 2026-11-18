@@ -11,11 +11,12 @@ of the same name that returns the PYPOWER case `dict`.
 - `wecc240.wecc240_2018.wecc240_2018`: the 2011 model with generator costs
   by type, branch ratings and voltage fixes (NREL 2018 update).
 
-- `wecc240.wecc240_2020.wecc240_2020`: the 2018 model at 1 January 2020
-  00:00 UTC, with node net loads from `eudoxys/loads` and node generation by
-  fuel category from `eudoxys/generation`, and battery storage from
-  `slacgismo/regrow` (see
-  `wecc240/build_wecc240_2020.py`).
+- `wecc240.wecc240_2020.wecc240_2020`: the 2018 network at the 2020 peak
+  CAISO net load hour, with node net loads from `eudoxys/loads` scaled to
+  Form 930 balancing authority peaks, the
+  EIA-860 fleet at REGROW's nearest nodes with capacity and output from
+  `eudoxys/generation`, battery storage from `slacgismo/regrow`, and an OPF
+  dispatch (see `wecc240/build_wecc240_2020.py`).
 
 `wecc240.WECC240_2011` and `wecc240.WECC240_2018` are those case dicts,
 evaluated when the package is imported.
