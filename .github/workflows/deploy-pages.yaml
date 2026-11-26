@@ -1,5 +1,5 @@
 # Builds the pdoc documentation and deploys it to GitHub Pages
-name: Deploy Pages
+name: Documentation
 
 on:
   # Runs on pushes to main that can change the generated docs
