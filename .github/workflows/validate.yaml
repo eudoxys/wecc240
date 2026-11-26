@@ -1,4 +1,4 @@
-name: validate
+name: Validation
 
 # Run only when code, test data, or dependencies change
 on:
